@@ -18,6 +18,8 @@ y tratando de llegar a la meta en el menor tiempo posible.
 - `Assets/Scripts/Managers/` → GameManager, RaceManager, AudioManager
 - `Assets/Scripts/UI/` → HUD, menús
 - `Assets/Scripts/Enemies/` → obstáculos y peligros de la pista
+- `Assets/Scripts/Track/` → generación de la pista y zonas (checkpoints, meta)
+- `Assets/Scripts/Editor/` → herramientas del Editor (constructor de la escena del prototipo)
 - `Assets/Scenes/` → escenas (.unity)
 - `Assets/Prefabs/` → objetos reutilizables
 - `Docs/` → documento de diseño y guías
