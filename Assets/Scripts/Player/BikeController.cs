@@ -1,0 +1,362 @@
+using System;
+using UnityEngine;
+
+/// <summary>
+/// Física arcade de la bici. La simulación la lleva una esfera invisible
+/// (Rigidbody + SphereCollider sin fricción y con la rotación congelada);
+/// el rumbo se guarda aparte como un ángulo, así la esfera nunca vuelca
+/// y caerse es casi imposible. El modelo visual (BikeVisuals) solo copia este estado.
+/// </summary>
+[RequireComponent(typeof(Rigidbody), typeof(SphereCollider))]
+public class BikeController : MonoBehaviour
+{
+    [Header("Velocidad")]
+    [Tooltip("Velocidad máxima normal en m/s (22 m/s ≈ 80 km/h).")]
+    [SerializeField] private float maxSpeed = 22f;
+
+    [Tooltip("Velocidad máxima agachado en m/s (28 m/s ≈ 100 km/h).")]
+    [SerializeField] private float maxSpeedCrouched = 28f;
+
+    [Tooltip("Frenado suave (m/s²) cuando se supera la velocidad máxima; evita cortes bruscos al soltar Shift.")]
+    [SerializeField] private float overspeedDeceleration = 6f;
+
+    [Tooltip("Resistencia del aire: desaceleración = coeficiente × velocidad². Define la velocidad tope en cada pendiente.")]
+    [SerializeField] private float airDragCoefficient = 0.005f;
+
+    [Tooltip("Multiplicador de la resistencia del aire al ir agachado (menos de 1 = más rápido).")]
+    [SerializeField, Range(0.1f, 1f)] private float crouchDragMultiplier = 0.65f;
+
+    [Tooltip("Desaceleración por rodadura en m/s², para que la bici se detenga en lo plano.")]
+    [SerializeField] private float rollingResistance = 0.3f;
+
+    [Header("Pedaleo y freno")]
+    [Tooltip("Aceleración al pedalear en m/s².")]
+    [SerializeField] private float pedalAcceleration = 7f;
+
+    [Tooltip("Hasta qué velocidad ayuda el pedaleo, en m/s (11 m/s ≈ 40 km/h). Más rápido, solo acelera la pendiente.")]
+    [SerializeField] private float pedalTopSpeed = 11f;
+
+    [Tooltip("Desaceleración del freno en m/s².")]
+    [SerializeField] private float brakeDeceleration = 14f;
+
+    [Header("Giro")]
+    [Tooltip("Velocidad de giro a baja velocidad, en grados por segundo.")]
+    [SerializeField] private float turnRateSlow = 120f;
+
+    [Tooltip("Velocidad de giro a velocidad máxima, en grados por segundo.")]
+    [SerializeField] private float turnRateFast = 60f;
+
+    [Tooltip("Multiplicador del giro al ir agachado.")]
+    [SerializeField, Range(0.1f, 1f)] private float crouchTurnMultiplier = 0.6f;
+
+    [Tooltip("Fracción del giro disponible con la bici casi detenida (para poder enderezarse).")]
+    [SerializeField, Range(0f, 1f)] private float standstillTurnFactor = 0.35f;
+
+    [Header("Agarre")]
+    [Tooltip("Rapidez (1/s) con la que se elimina la velocidad lateral. Más alto = la bici va más hacia donde apunta.")]
+    [SerializeField] private float lateralGrip = 10f;
+
+    [Tooltip("Aceleración (m/s²) que pega la bici al suelo; ayuda a seguir las bermas y lomas.")]
+    [SerializeField] private float groundStickForce = 6f;
+
+    [Header("Salto y aire")]
+    [Tooltip("Velocidad vertical del salto en m/s.")]
+    [SerializeField] private float jumpSpeed = 4.5f;
+
+    [Tooltip("Gravedad extra en el aire (0.6 = +60 %). Hace que los saltos no se sientan flotantes.")]
+    [SerializeField] private float extraAirGravity = 0.6f;
+
+    [Tooltip("Fracción del giro disponible en el aire.")]
+    [SerializeField, Range(0f, 1f)] private float airControl = 0.35f;
+
+    [Tooltip("Margen (s) para saltar justo después de dejar el suelo.")]
+    [SerializeField] private float coyoteTime = 0.12f;
+
+    [Tooltip("Margen (s) que se recuerda el botón de salto antes de tocar el suelo.")]
+    [SerializeField] private float jumpBufferTime = 0.15f;
+
+    [Header("Suelo")]
+    [Tooltip("Distancia extra, por debajo de la esfera, para considerar que está en el suelo.")]
+    [SerializeField] private float groundCheckDistance = 0.3f;
+
+    [Tooltip("Capas que cuentan como suelo.")]
+    [SerializeField] private LayerMask groundLayers = ~0;
+
+    [Tooltip("Rapidez con la que la normal del suelo se suaviza (evita temblores entre triángulos).")]
+    [SerializeField] private float normalSmoothing = 15f;
+
+    [Header("Reaparecer")]
+    [Tooltip("Si la esfera baja de esta altura, reaparece en el último checkpoint. El constructor de escena la calcula.")]
+    [SerializeField] private float fallHeight = -100f;
+
+    [Tooltip("Altura sobre el punto del checkpoint a la que reaparece la bici.")]
+    [SerializeField] private float respawnHeightOffset = 0.6f;
+
+    /// <summary>Se dispara al reaparecer (para que la cámara y el modelo salten sin suavizado).</summary>
+    public event Action Respawned;
+
+    public Vector3 Velocity => rb.linearVelocity;
+    public float Speed => rb.linearVelocity.magnitude;
+    public float SpeedKmh => Speed * 3.6f;
+    public float ForwardSpeed { get; private set; }
+    public bool IsGrounded { get; private set; }
+    public Vector3 GroundNormal { get; private set; } = Vector3.up;
+    public float SteerInput { get; private set; }
+    public bool IsCrouching { get; private set; }
+    public float MaxSpeed => maxSpeed;
+    public float Radius => sphere.radius * transform.lossyScale.y;
+
+    /// <summary>Rumbo (yaw en grados) interpolado entre pasos de física, para que el modelo y la cámara no tiemblen.</summary>
+    public float InterpolatedHeading
+    {
+        get
+        {
+            float t = Time.fixedDeltaTime > 0f ? Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime) : 1f;
+            return Mathf.LerpAngle(previousHeading, heading, t);
+        }
+    }
+
+    /// <summary>Dirección horizontal hacia la que apunta la bici.</summary>
+    public Vector3 FlatForward => Quaternion.Euler(0f, InterpolatedHeading, 0f) * Vector3.forward;
+
+    private Rigidbody rb;
+    private SphereCollider sphere;
+    private GameManager gameManager;
+
+    private float heading;
+    private float previousHeading;
+
+    // Input leído en Update y consumido en FixedUpdate.
+    private float throttleInput;
+    private float brakeInput;
+    private float lastJumpPressTime = -10f;
+    private float lastGroundedTime = -10f;
+    private bool respawnRequested;
+
+    private Vector3 startPosition;
+    private float startHeading;
+    private Vector3 checkpointPosition;
+    private float checkpointHeading;
+    private int checkpointIndex = -1;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+        sphere = GetComponent<SphereCollider>();
+
+        // La rotación física no se usa: el rumbo va en "heading".
+        rb.freezeRotation = true;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.linearDamping = 0f;
+        rb.angularDamping = 0f;
+        rb.useGravity = true;
+
+        startPosition = transform.position;
+        startHeading = transform.eulerAngles.y;
+        heading = previousHeading = startHeading;
+        checkpointPosition = startPosition;
+        checkpointHeading = startHeading;
+    }
+
+    private void Start()
+    {
+        gameManager = GameManager.Instance;
+        if (gameManager != null) gameManager.RaceReset += HandleRaceReset;
+        else Debug.LogWarning("BikeController: no hay GameManager; la bici se moverá sin cuenta regresiva.", this);
+    }
+
+    private void OnDestroy()
+    {
+        if (gameManager != null) gameManager.RaceReset -= HandleRaceReset;
+    }
+
+    private void Update()
+    {
+        bool canMove = CanMove();
+
+        throttleInput = canMove ? GameInput.Throttle : 0f;
+        brakeInput = canMove ? GameInput.Brake : 0f;
+        SteerInput = canMove ? GameInput.Steer : 0f;
+        IsCrouching = canMove && GameInput.Crouch;
+
+        if (canMove && GameInput.JumpPressed) lastJumpPressTime = Time.time;
+        if (canMove && GameInput.RespawnPressed) respawnRequested = true;
+    }
+
+    private void FixedUpdate()
+    {
+        previousHeading = heading;
+        float dt = Time.fixedDeltaTime;
+
+        if (respawnRequested || transform.position.y < fallHeight)
+        {
+            respawnRequested = false;
+            RespawnAtCheckpoint();
+            return;
+        }
+
+        UpdateGround(dt);
+
+        // Antes del ¡YA! la bici queda quieta en la salida.
+        if (gameManager != null && gameManager.State != GameManager.RaceState.Carrera
+            && gameManager.State != GameManager.RaceState.Meta)
+        {
+            rb.linearVelocity = Vector3.zero;
+            ForwardSpeed = 0f;
+            return;
+        }
+
+        bool racing = CanMove();
+        Vector3 velocity = rb.linearVelocity;
+        float speed = velocity.magnitude;
+
+        // --- Giro: más lento a alta velocidad, reducido al agacharse y en el aire.
+        float speed01 = Mathf.InverseLerp(0f, maxSpeed, speed);
+        float turnRate = Mathf.Lerp(turnRateSlow, turnRateFast, speed01);
+        if (IsCrouching) turnRate *= crouchTurnMultiplier;
+        if (!IsGrounded) turnRate *= airControl;
+        turnRate *= Mathf.Lerp(standstillTurnFactor, 1f, Mathf.Clamp01(speed / 4f));
+        heading = Mathf.Repeat(heading + SteerInput * turnRate * dt, 360f);
+
+        Vector3 flatForward = Quaternion.Euler(0f, heading, 0f) * Vector3.forward;
+        Vector3 forward = IsGrounded
+            ? Vector3.ProjectOnPlane(flatForward, GroundNormal).normalized
+            : flatForward;
+
+        float forwardSpeed = Vector3.Dot(velocity, forward);
+
+        if (IsGrounded)
+        {
+            // --- Agarre: quitar parte de la velocidad lateral para que la bici siga su rumbo.
+            Vector3 right = Vector3.Cross(GroundNormal, forward).normalized;
+            float lateralSpeed = Vector3.Dot(velocity, right);
+            velocity -= right * lateralSpeed * (1f - Mathf.Exp(-lateralGrip * dt));
+
+            // --- Pedaleo: solo ayuda a baja velocidad; la pendiente hace el resto.
+            if (throttleInput > 0f && forwardSpeed < pedalTopSpeed)
+            {
+                float add = Mathf.Min(pedalAcceleration * throttleInput * dt, pedalTopSpeed - forwardSpeed);
+                velocity += forward * add;
+            }
+
+            // --- Freno (y freno automático tras la meta, para parar antes de la barrera). Nunca da marcha atrás.
+            float brake = racing ? brakeInput : 0.8f;
+            if (brake > 0f && forwardSpeed > 0f)
+            {
+                velocity -= forward * Mathf.Min(forwardSpeed, brakeDeceleration * brake * dt);
+            }
+
+            // --- Rodadura.
+            float decel = rollingResistance;
+            forwardSpeed = Vector3.Dot(velocity, forward);
+            if (forwardSpeed > 0f) velocity -= forward * Mathf.Min(forwardSpeed, decel * dt);
+
+            // --- Pegarse al suelo, siguiendo la normal (sirve para las bermas).
+            velocity -= GroundNormal * groundStickForce * dt;
+        }
+        else
+        {
+            // --- Gravedad extra para saltos con peso.
+            velocity += Physics.gravity * extraAirGravity * dt;
+        }
+
+        // --- Resistencia del aire: limita la velocidad de forma natural en cada pendiente.
+        speed = velocity.magnitude;
+        if (speed > 0.01f)
+        {
+            float drag = airDragCoefficient * (IsCrouching ? crouchDragMultiplier : 1f) * speed * speed;
+            velocity -= velocity / speed * Mathf.Min(speed, drag * dt);
+        }
+
+        // --- Tope de velocidad suave (el de agachado es mayor).
+        float limit = IsCrouching ? maxSpeedCrouched : maxSpeed;
+        forwardSpeed = Vector3.Dot(velocity, forward);
+        if (forwardSpeed > limit)
+        {
+            float excess = Mathf.Min(forwardSpeed - limit, overspeedDeceleration * dt);
+            velocity -= forward * excess;
+        }
+
+        // --- Salto, con margen antes y después de tocar el suelo.
+        bool jumpBuffered = Time.time - lastJumpPressTime <= jumpBufferTime;
+        bool canJump = IsGrounded || Time.time - lastGroundedTime <= coyoteTime;
+        if (racing && jumpBuffered && canJump)
+        {
+            lastJumpPressTime = -10f;
+            lastGroundedTime = -10f;
+            if (velocity.y < 0f) velocity.y = 0f;
+            velocity += Vector3.up * jumpSpeed;
+            IsGrounded = false;
+        }
+
+        rb.linearVelocity = velocity;
+        ForwardSpeed = Vector3.Dot(velocity, forward);
+    }
+
+    /// <summary>Lo llama un TrackTrigger de tipo Checkpoint. Ignora checkpoints anteriores al actual.</summary>
+    public void SetCheckpoint(int index, Vector3 position, float headingDegrees)
+    {
+        if (index <= checkpointIndex) return;
+        checkpointIndex = index;
+        checkpointPosition = position;
+        checkpointHeading = headingDegrees;
+    }
+
+    /// <summary>Altura bajo la cual la bici reaparece. La llama el constructor de escena.</summary>
+    public void ConfigureFallHeight(float height)
+    {
+        fallHeight = height;
+    }
+
+    public void RespawnAtCheckpoint()
+    {
+        Teleport(checkpointPosition + Vector3.up * respawnHeightOffset, checkpointHeading);
+    }
+
+    private void HandleRaceReset()
+    {
+        checkpointIndex = -1;
+        checkpointPosition = startPosition;
+        checkpointHeading = startHeading;
+        Teleport(startPosition, startHeading);
+    }
+
+    private void Teleport(Vector3 position, float headingDegrees)
+    {
+        rb.linearVelocity = Vector3.zero;
+        rb.position = position;
+        transform.position = position;
+        heading = previousHeading = headingDegrees;
+        GroundNormal = Vector3.up;
+        IsGrounded = false;
+        ForwardSpeed = 0f;
+        lastJumpPressTime = -10f;
+        Respawned?.Invoke();
+    }
+
+    private bool CanMove()
+    {
+        return gameManager == null || gameManager.CanRiderMove;
+    }
+
+    private void UpdateGround(float dt)
+    {
+        // Se lanza el rayo según la normal anterior: así la bici "sigue" las paredes de las bermas.
+        Vector3 direction = IsGrounded ? -GroundNormal : Vector3.down;
+        float distance = Radius + groundCheckDistance;
+
+        if (Physics.Raycast(rb.position, direction, out RaycastHit hit, distance, groundLayers, QueryTriggerInteraction.Ignore)
+            || (IsGrounded && Physics.Raycast(rb.position, Vector3.down, out hit, distance, groundLayers, QueryTriggerInteraction.Ignore)))
+        {
+            IsGrounded = true;
+            lastGroundedTime = Time.time;
+            GroundNormal = Vector3.Slerp(GroundNormal, hit.normal, 1f - Mathf.Exp(-normalSmoothing * dt)).normalized;
+        }
+        else
+        {
+            IsGrounded = false;
+            GroundNormal = Vector3.Slerp(GroundNormal, Vector3.up, 1f - Mathf.Exp(-normalSmoothing * 0.3f * dt)).normalized;
+        }
+    }
+}
