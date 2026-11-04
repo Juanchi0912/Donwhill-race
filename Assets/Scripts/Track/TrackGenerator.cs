@@ -480,6 +480,7 @@ public class TrackGenerator : MonoBehaviour
         mesh.SetTriangles(berm, 1);
         mesh.SetTriangles(grass, 2);
         mesh.RecalculateNormals();
+        mesh.RecalculateTangents(); // Necesario para los mapas normales de tierra y pasto.
         mesh.RecalculateBounds();
         return mesh;
     }
