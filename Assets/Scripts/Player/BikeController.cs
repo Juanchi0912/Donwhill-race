@@ -30,11 +30,23 @@ public class BikeController : MonoBehaviour
     [SerializeField] private float rollingResistance = 0.3f;
 
     [Header("Pedaleo y freno")]
-    [Tooltip("Aceleración al pedalear en m/s².")]
+    [Tooltip("Aceleración máxima al pedalear desde parado, en m/s².")]
     [SerializeField] private float pedalAcceleration = 7f;
 
-    [Tooltip("Hasta qué velocidad ayuda el pedaleo, en m/s (11 m/s ≈ 40 km/h). Más rápido, solo acelera la pendiente.")]
-    [SerializeField] private float pedalTopSpeed = 11f;
+    [Tooltip("Potencia de las piernas (aceleración × velocidad). Empuja fuerte al arrancar y cada vez menos a más velocidad.")]
+    [SerializeField] private float pedalPower = 22f;
+
+    [Tooltip("Velocidad (m/s) a partir de la cual pedalear ya no ayuda (14 m/s ≈ 50 km/h): las piernas no giran más rápido.")]
+    [SerializeField] private float pedalTopSpeed = 14f;
+
+    [Tooltip("Metros por segundo antes del tope en los que el pedaleo se va apagando suavemente.")]
+    [SerializeField] private float pedalFadeRange = 2.5f;
+
+    [Tooltip("Energía del corredor. Si falta, se pedalea sin cansancio.")]
+    [SerializeField] private RiderStamina stamina = null;
+
+    [Tooltip("Multiplicador de la resistencia del aire estando agotado: el corredor se endereza para respirar.")]
+    [SerializeField] private float exhaustedDragMultiplier = 1.5f;
 
     [Tooltip("Desaceleración del freno en m/s².")]
     [SerializeField] private float brakeDeceleration = 14f;
@@ -110,6 +122,14 @@ public class BikeController : MonoBehaviour
     public float SteerInput { get; private set; }
     public bool IsCrouching { get; private set; }
     public float MaxSpeed => maxSpeed;
+
+    /// <summary>Esfuerzo real de pedaleo en este paso (0 a 1): intensidad × potencia disponible.</summary>
+    public float PedalEffort { get; private set; }
+
+    /// <summary>Energía del corredor (puede ser null si no se usa cansancio).</summary>
+    public RiderStamina Stamina => stamina;
+
+    private bool IsExhausted => stamina != null && stamina.IsExhausted;
     public float Radius => sphere.radius * transform.lossyScale.y;
 
     /// <summary>Rumbo (yaw en grados) interpolado entre pasos de física, para que el modelo y la cámara no tiemblen.</summary>
@@ -153,6 +173,7 @@ public class BikeController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         sphere = GetComponent<SphereCollider>();
+        if (stamina == null) TryGetComponent(out stamina);
 
         // La rotación física no se usa: el rumbo va en "heading".
         rb.freezeRotation = true;
@@ -188,7 +209,8 @@ public class BikeController : MonoBehaviour
         throttleInput = canMove ? GameInput.Throttle : 0f;
         brakeInput = canMove ? GameInput.Brake : 0f;
         SteerInput = canMove ? GameInput.Steer : 0f;
-        IsCrouching = canMove && GameInput.Crouch;
+        // Agotado, el corredor se endereza para respirar: no puede ir agachado.
+        IsCrouching = canMove && GameInput.Crouch && !IsExhausted;
 
         if (canMove && GameInput.JumpPressed) lastJumpPressTime = Time.time;
         if (canMove && GameInput.RespawnPressed) respawnRequested = true;
@@ -214,12 +236,18 @@ public class BikeController : MonoBehaviour
         {
             rb.linearVelocity = Vector3.zero;
             ForwardSpeed = 0f;
+            PedalEffort = 0f;
             return;
         }
 
         bool racing = CanMove();
         Vector3 velocity = rb.linearVelocity;
         float speed = velocity.magnitude;
+
+        // --- Energía: solo se pedalea con las ruedas en el suelo; en el aire y sin pedalear se recupera.
+        float pedalIntensity = IsGrounded && racing ? throttleInput : 0f;
+        float pedalPowerFactor = stamina != null ? stamina.Tick(pedalIntensity, speed < 1f, dt) : 1f;
+        PedalEffort = pedalIntensity * pedalPowerFactor;
 
         // --- Giro: más lento a alta velocidad, reducido al agacharse y en el aire.
         float speed01 = Mathf.InverseLerp(0f, maxSpeed, speed);
@@ -243,11 +271,13 @@ public class BikeController : MonoBehaviour
             float lateralSpeed = Vector3.Dot(velocity, right);
             velocity -= right * lateralSpeed * (1f - Mathf.Exp(-lateralGrip * dt));
 
-            // --- Pedaleo: solo ayuda a baja velocidad; la pendiente hace el resto.
-            if (throttleInput > 0f && forwardSpeed < pedalTopSpeed)
+            // --- Pedaleo con potencia constante: mucho empuje al arrancar y menos a más velocidad.
+            // Mientras más se pedalea, más rápido se va (hasta el tope), pero se gasta energía.
+            if (PedalEffort > 0f && forwardSpeed < pedalTopSpeed)
             {
-                float add = Mathf.Min(pedalAcceleration * throttleInput * dt, pedalTopSpeed - forwardSpeed);
-                velocity += forward * add;
+                float accel = Mathf.Min(pedalAcceleration, pedalPower / Mathf.Max(forwardSpeed, 1f));
+                float fade = pedalFadeRange > 0f ? Mathf.Clamp01((pedalTopSpeed - forwardSpeed) / pedalFadeRange) : 1f;
+                velocity += forward * accel * fade * PedalEffort * dt;
             }
 
             // --- Freno (y freno automático tras la meta, para parar antes de la barrera). Nunca da marcha atrás.
@@ -276,7 +306,7 @@ public class BikeController : MonoBehaviour
         speed = velocity.magnitude;
         if (speed > 0.01f)
         {
-            float drag = airDragCoefficient * (IsCrouching ? crouchDragMultiplier : 1f) * speed * speed;
+            float drag = airDragCoefficient * (IsCrouching ? crouchDragMultiplier : 1f) * (IsExhausted ? exhaustedDragMultiplier : 1f) * speed * speed;
             velocity -= velocity / speed * Mathf.Min(speed, drag * dt);
         }
 
@@ -298,6 +328,7 @@ public class BikeController : MonoBehaviour
             lastGroundedTime = -10f;
             if (velocity.y < 0f) velocity.y = 0f;
             velocity += Vector3.up * jumpSpeed;
+            if (stamina != null) stamina.SpendJump();
             IsGrounded = false;
         }
 
@@ -330,6 +361,7 @@ public class BikeController : MonoBehaviour
         checkpointIndex = -1;
         checkpointPosition = startPosition;
         checkpointHeading = startHeading;
+        if (stamina != null) stamina.Refill(); // Cada carrera empieza con energía completa.
         Teleport(startPosition, startHeading);
     }
 
