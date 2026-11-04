@@ -264,7 +264,9 @@ public static class PrototypeSceneBuilder
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.freezeRotation = true;
+        RiderStamina stamina = physics.AddComponent<RiderStamina>();
         BikeController controller = physics.AddComponent<BikeController>();
+        SetReference(controller, "stamina", stamina);
 
         // --- Modelo visual (se arma en el origen y luego se lleva a la salida).
         BikeModelBuilder.Parts parts = BikeModelBuilder.Build();
@@ -739,6 +741,18 @@ public static class PrototypeSceneBuilder
         UiBuilder.Label("Ayuda", hud, font, "R: reaparecer   ·   Esc: reiniciar", 26, new Vector2(0f, 0f), new Vector2(260f, 50f), new Color(1f, 1f, 1f, 0.7f), FontStyle.Normal, TextAnchor.MiddleLeft, true, new Vector2(480f, 50f));
         Text countdown = UiBuilder.Label("Cuenta", hud, font, string.Empty, 230, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), accent, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 300f));
 
+        // --- Barra de energía, abajo a la izquierda (sobre la ayuda de teclas).
+        Text energyLabel = UiBuilder.Label("EnergiaTexto", hud, font, "ENERGÍA", 26, new Vector2(0f, 0f), new Vector2(240f, 140f),
+            new Color(1f, 1f, 1f, 0.8f), FontStyle.Bold, TextAnchor.MiddleLeft, true, new Vector2(400f, 36f));
+        RectTransform energyBar = UiBuilder.Panel("EnergiaBarra", hud, Vector2.zero, Vector2.zero, new Vector2(240f, 108f),
+            new Vector2(400f, 22f), new Color(0f, 0f, 0f, 0.55f));
+        RectTransform energyFill = UiBuilder.Panel("EnergiaRelleno", energyBar, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
+            new Color(0.35f, 0.85f, 0.35f));
+        energyFill.pivot = new Vector2(0f, 0.5f);
+        // Margen solo arriba y abajo: así con energía 0 el relleno queda en ancho 0 (y no negativo).
+        energyFill.offsetMin = new Vector2(0f, 3f);
+        energyFill.offsetMax = new Vector2(0f, -3f);
+
         // --- Controles: se muestran durante la cuenta regresiva (antes estaban en la pantalla de inicio).
         RectTransform controls = UiBuilder.Panel("Controles", hud, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1240f, 220f), new Color(0f, 0f, 0f, 0.55f));
         UiBuilder.Label("ControlesIzquierda", controls, font,
@@ -770,6 +784,9 @@ public static class PrototypeSceneBuilder
         SetReference(raceHud, "speedText", speed);
         SetReference(raceHud, "countdownText", countdown);
         SetReference(raceHud, "controlsPanel", controls.gameObject);
+        SetReference(raceHud, "energyFill", energyFill);
+        SetReference(raceHud, "energyFillImage", energyFill.GetComponent<Image>());
+        SetReference(raceHud, "energyLabel", energyLabel);
         SetReference(raceHud, "finishRoot", finish.gameObject);
         SetReference(raceHud, "finishTimeText", finishTime);
         SetReference(raceHud, "finishBestText", finishBest);

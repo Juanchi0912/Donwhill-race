@@ -29,6 +29,25 @@ public class RaceHUD : MonoBehaviour
     [Tooltip("Panel con los controles; se ve solo durante la cuenta regresiva (opcional).")]
     [SerializeField] private GameObject controlsPanel = null;
 
+    [Header("Energía")]
+    [Tooltip("Relleno de la barra de energía: se estira de izquierda a derecha.")]
+    [SerializeField] private RectTransform energyFill = null;
+
+    [Tooltip("Imagen del relleno (cambia de color según la energía).")]
+    [SerializeField] private Image energyFillImage = null;
+
+    [Tooltip("Texto sobre la barra: \"ENERGÍA\" o \"AGOTADO\".")]
+    [SerializeField] private Text energyLabel = null;
+
+    [Tooltip("Color con mucha energía.")]
+    [SerializeField] private Color energyHighColor = new Color(0.35f, 0.85f, 0.35f);
+
+    [Tooltip("Color con energía media.")]
+    [SerializeField] private Color energyMidColor = new Color(1f, 0.8f, 0.2f);
+
+    [Tooltip("Color con poca energía o agotado.")]
+    [SerializeField] private Color energyLowColor = new Color(0.95f, 0.25f, 0.15f);
+
     [Header("Pantalla de meta")]
     [Tooltip("Raíz de la pantalla de meta.")]
     [SerializeField] private GameObject finishRoot = null;
@@ -54,10 +73,13 @@ public class RaceHUD : MonoBehaviour
     private int lastSpeed = -1;
     private string lastCountdown;
     private float countdownChangeTime;
+    private RiderStamina stamina;
+    private bool lastExhausted;
 
     private void Start()
     {
         gameManager = GameManager.Instance;
+        if (bike != null) stamina = bike.Stamina;
         if (gameManager == null)
         {
             Debug.LogWarning("RaceHUD: no hay GameManager en la escena.", this);
@@ -113,6 +135,8 @@ public class RaceHUD : MonoBehaviour
             countdownText.rectTransform.localScale = Vector3.one * scale;
         }
 
+        UpdateEnergy();
+
         // Récord parpadeando.
         if (newRecordText != null && newRecordText.gameObject.activeSelf)
         {
@@ -120,6 +144,36 @@ public class RaceHUD : MonoBehaviour
             color.a = 0.55f + 0.45f * Mathf.Cos(Time.unscaledTime * recordBlinkSpeed * Mathf.PI * 2f);
             newRecordText.color = color;
         }
+    }
+
+    private void UpdateEnergy()
+    {
+        if (stamina == null) return;
+        float energy = stamina.Energy01;
+        if (energyFill != null) energyFill.anchorMax = new Vector2(energy, 1f);
+
+        bool exhausted = stamina.IsExhausted;
+        if (energyFillImage != null)
+        {
+            Color color = energy > 0.5f
+                ? Color.Lerp(energyMidColor, energyHighColor, (energy - 0.5f) * 2f)
+                : Color.Lerp(energyLowColor, energyMidColor, energy * 2f);
+            if (exhausted)
+            {
+                // Parpadeo rojo para que se note sin leer el texto.
+                float pulse = 0.5f + 0.5f * Mathf.Cos(Time.unscaledTime * 6f * Mathf.PI);
+                color = Color.Lerp(energyLowColor, Color.white, pulse * 0.4f);
+            }
+            energyFillImage.color = color;
+        }
+
+        // El texto solo se cambia cuando cambia el estado, para no generar basura cada frame.
+        if (energyLabel != null && exhausted != lastExhausted)
+        {
+            energyLabel.text = exhausted ? "AGOTADO" : "ENERGÍA";
+            energyLabel.color = exhausted ? energyLowColor : new Color(1f, 1f, 1f, 0.8f);
+        }
+        lastExhausted = exhausted;
     }
 
     private void HandleStateChanged(GameManager.RaceState state)
