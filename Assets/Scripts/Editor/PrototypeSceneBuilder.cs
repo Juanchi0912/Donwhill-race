@@ -126,7 +126,7 @@ public static class PrototypeSceneBuilder
             Progress("Guardando la escena", 0.95f);
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
             EditorSceneManager.SaveScene(scene, ScenePath);
-            AddSceneFirstInBuildSettings(ScenePath);
+            BuildSceneList.Register(ScenePath);
             AssetDatabase.SaveAssets();
 
             Selection.activeGameObject = bike.gameObject;
@@ -721,68 +721,46 @@ public static class PrototypeSceneBuilder
 
     private static void BuildUI(BikeController bike)
     {
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Font font = UiBuilder.DefaultFont;
+        // Sin GraphicRaycaster ni EventSystem: en la carrera la UI no tiene botones, todo va por GameInput.
+        Canvas canvas = UiBuilder.Canvas("UI", false);
+        GameObject canvasGo = canvas.gameObject;
 
-        GameObject canvasGo = new GameObject("UI", typeof(RectTransform));
-        Canvas canvas = canvasGo.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-        // Sin GraphicRaycaster ni EventSystem: la UI no tiene botones, todo va por GameInput.
-
-        Color white = Color.white;
+        Color white = UiBuilder.White;
         Color accent = new Color(1f, 0.62f, 0.1f);
-        Color gold = new Color(1f, 0.85f, 0.2f);
+        Color gold = UiBuilder.Gold;
 
-        // --- Pantalla de inicio.
-        RectTransform title = Stretch(UIObject("PantallaInicio", canvasGo.transform));
-        Panel("Velo", title, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.25f));
-        Label("Titulo", title, font, "DOWNHILL RACE", 150, new Vector2(0.5f, 1f), new Vector2(0f, -230f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        Label("Subtitulo", title, font, "Prototipo v0.1", 40, new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Color(1f, 1f, 1f, 0.85f), FontStyle.Italic, TextAnchor.MiddleCenter, true);
+        // --- HUD de carrera.
+        RectTransform hud = UiBuilder.Stretch(UiBuilder.UIObject("HUD", canvasGo.transform));
+        Text time = UiBuilder.Label("Tiempo", hud, font, "0:00.00", 76, new Vector2(0.5f, 1f), new Vector2(0f, -70f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
+        Text best = UiBuilder.Label("Mejor", hud, font, "Mejor  --:--.--", 30, new Vector2(0.5f, 1f), new Vector2(0f, -135f), gold, FontStyle.Normal, TextAnchor.MiddleCenter, true);
+        Text speed = UiBuilder.Label("Velocidad", hud, font, "0", 110, new Vector2(1f, 0f), new Vector2(-300f, 115f), white, FontStyle.Bold, TextAnchor.MiddleRight, true, new Vector2(320f, 130f));
+        UiBuilder.Label("Unidad", hud, font, "km/h", 36, new Vector2(1f, 0f), new Vector2(-75f, 85f), new Color(1f, 1f, 1f, 0.85f), FontStyle.Bold, TextAnchor.MiddleLeft, true, new Vector2(120f, 60f));
+        UiBuilder.Label("Ayuda", hud, font, "R: reaparecer   ·   Esc: reiniciar", 26, new Vector2(0f, 0f), new Vector2(260f, 50f), new Color(1f, 1f, 1f, 0.7f), FontStyle.Normal, TextAnchor.MiddleLeft, true, new Vector2(480f, 50f));
+        Text countdown = UiBuilder.Label("Cuenta", hud, font, string.Empty, 230, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), accent, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 300f));
 
-        RectTransform mode = Panel("Modo", title, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 60f), new Vector2(620f, 84f), new Color(accent.r, accent.g, accent.b, 0.9f));
-        Label("ModoTexto", mode, font, "Contrarreloj  ·  Pista 1", 46, new Vector2(0.5f, 0.5f), Vector2.zero, white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-
-        Text pressStart = Label("PresionaEnter", title, font, "Presiona ENTER para comenzar", 44, new Vector2(0.5f, 0.5f), new Vector2(0f, -60f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        Text titleBest = Label("MejorTiempo", title, font, string.Empty, 32, new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), gold, FontStyle.Normal, TextAnchor.MiddleCenter, true);
-
-        RectTransform controls = Panel("Controles", title, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1240f, 220f), new Color(0f, 0f, 0f, 0.55f));
-        Label("ControlesIzquierda", controls, font,
+        // --- Controles: se muestran durante la cuenta regresiva (antes estaban en la pantalla de inicio).
+        RectTransform controls = UiBuilder.Panel("Controles", hud, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1240f, 220f), new Color(0f, 0f, 0f, 0.55f));
+        UiBuilder.Label("ControlesIzquierda", controls, font,
             "<b>Pedalear</b>   W / ↑   ·   RT\n" +
             "<b>Frenar</b>   S / ↓   ·   LT\n" +
             "<b>Girar</b>   A D / ← →   ·   Stick izquierdo\n" +
             "<b>Agacharse</b>   Shift izq.   ·   X / Cuadrado",
             28, new Vector2(0.5f, 0.5f), new Vector2(-300f, 0f), white, FontStyle.Normal, TextAnchor.MiddleLeft, false, new Vector2(560f, 200f));
-        Label("ControlesDerecha", controls, font,
+        UiBuilder.Label("ControlesDerecha", controls, font,
             "<b>Saltar</b>   Espacio   ·   A / Cruz\n" +
             "<b>Reaparecer</b>   R   ·   Y / Triángulo\n" +
-            "<b>Empezar</b>   Enter   ·   Start\n" +
-            "<b>Volver / reiniciar</b>   Esc   ·   Select",
+            "<b>Correr otra vez</b>   Enter   ·   Start\n" +
+            "<b>Reiniciar / menú</b>   Esc   ·   Select",
             28, new Vector2(0.5f, 0.5f), new Vector2(320f, 0f), white, FontStyle.Normal, TextAnchor.MiddleLeft, false, new Vector2(560f, 200f));
 
-        // --- HUD de carrera.
-        RectTransform hud = Stretch(UIObject("HUD", canvasGo.transform));
-        Text time = Label("Tiempo", hud, font, "0:00.00", 76, new Vector2(0.5f, 1f), new Vector2(0f, -70f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        Text best = Label("Mejor", hud, font, "Mejor  --:--.--", 30, new Vector2(0.5f, 1f), new Vector2(0f, -135f), gold, FontStyle.Normal, TextAnchor.MiddleCenter, true);
-        Text speed = Label("Velocidad", hud, font, "0", 110, new Vector2(1f, 0f), new Vector2(-300f, 115f), white, FontStyle.Bold, TextAnchor.MiddleRight, true, new Vector2(320f, 130f));
-        Label("Unidad", hud, font, "km/h", 36, new Vector2(1f, 0f), new Vector2(-75f, 85f), new Color(1f, 1f, 1f, 0.85f), FontStyle.Bold, TextAnchor.MiddleLeft, true, new Vector2(120f, 60f));
-        Label("Ayuda", hud, font, "R: reaparecer   ·   Esc: reiniciar", 26, new Vector2(0f, 0f), new Vector2(260f, 50f), new Color(1f, 1f, 1f, 0.7f), FontStyle.Normal, TextAnchor.MiddleLeft, true, new Vector2(480f, 50f));
-        Text countdown = Label("Cuenta", hud, font, string.Empty, 230, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), accent, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 300f));
-
         // --- Pantalla de meta (dentro del HUD).
-        RectTransform finish = Panel("PantallaMeta", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 560f), new Color(0f, 0f, 0f, 0.6f));
-        Label("MetaTitulo", finish, font, "¡META!", 140, new Vector2(0.5f, 0.5f), new Vector2(0f, 170f), gold, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 180f));
-        Text finishTime = Label("MetaTiempo", finish, font, "Tiempo: 0:00.00", 64, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        Text finishBest = Label("MetaMejor", finish, font, "Mejor: 0:00.00", 40, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Color(1f, 1f, 1f, 0.9f), FontStyle.Normal, TextAnchor.MiddleCenter, true);
-        Text record = Label("NuevoRecord", finish, font, "¡Nuevo récord!", 54, new Vector2(0.5f, 0.5f), new Vector2(0f, -115f), gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        Label("MetaAyuda", finish, font, "ENTER para correr otra vez   ·   ESC para volver al inicio", 30, new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), white, FontStyle.Normal, TextAnchor.MiddleCenter, true, new Vector2(950f, 60f));
-
-        TitleScreen titleScreen = canvasGo.AddComponent<TitleScreen>();
-        SetReference(titleScreen, "root", title.gameObject);
-        SetReference(titleScreen, "pressStartText", pressStart);
-        SetReference(titleScreen, "bestTimeText", titleBest);
+        RectTransform finish = UiBuilder.Panel("PantallaMeta", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 560f), new Color(0f, 0f, 0f, 0.6f));
+        UiBuilder.Label("MetaTitulo", finish, font, "¡META!", 140, new Vector2(0.5f, 0.5f), new Vector2(0f, 170f), gold, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 180f));
+        Text finishTime = UiBuilder.Label("MetaTiempo", finish, font, "Tiempo: 0:00.00", 64, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
+        Text finishBest = UiBuilder.Label("MetaMejor", finish, font, "Mejor: 0:00.00", 40, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Color(1f, 1f, 1f, 0.9f), FontStyle.Normal, TextAnchor.MiddleCenter, true);
+        Text record = UiBuilder.Label("NuevoRecord", finish, font, "¡Nuevo récord!", 54, new Vector2(0.5f, 0.5f), new Vector2(0f, -115f), gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
+        UiBuilder.Label("MetaAyuda", finish, font, "ENTER para correr otra vez   ·   ESC para volver al menú", 30, new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), white, FontStyle.Normal, TextAnchor.MiddleCenter, true, new Vector2(950f, 60f));
 
         RaceHUD raceHud = canvasGo.AddComponent<RaceHUD>();
         SetReference(raceHud, "bike", bike);
@@ -791,6 +769,7 @@ public static class PrototypeSceneBuilder
         SetReference(raceHud, "bestTimeText", best);
         SetReference(raceHud, "speedText", speed);
         SetReference(raceHud, "countdownText", countdown);
+        SetReference(raceHud, "controlsPanel", controls.gameObject);
         SetReference(raceHud, "finishRoot", finish.gameObject);
         SetReference(raceHud, "finishTimeText", finishTime);
         SetReference(raceHud, "finishBestText", finishBest);
@@ -799,70 +778,6 @@ public static class PrototypeSceneBuilder
         // Estado inicial correcto ya en el Editor, antes de dar Play.
         hud.gameObject.SetActive(false);
         finish.gameObject.SetActive(false);
-    }
-
-    private static GameObject UIObject(string name, Transform parent)
-    {
-        GameObject go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        return go;
-    }
-
-    private static RectTransform Stretch(GameObject go)
-    {
-        RectTransform rect = (RectTransform)go.transform;
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-        return rect;
-    }
-
-    private static RectTransform Panel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 size, Color color)
-    {
-        GameObject go = UIObject(name, parent);
-        RectTransform rect = (RectTransform)go.transform;
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-        Image image = go.AddComponent<Image>();
-        image.color = color;
-        image.raycastTarget = false;
-        return rect;
-    }
-
-    private static Text Label(string name, Transform parent, Font font, string content, int size, Vector2 anchor,
-        Vector2 position, Color color, FontStyle style, TextAnchor alignment, bool outline, Vector2? boxSize = null)
-    {
-        GameObject go = UIObject(name, parent);
-        RectTransform rect = (RectTransform)go.transform;
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = boxSize ?? new Vector2(1400f, size * 1.4f);
-
-        Text text = go.AddComponent<Text>();
-        text.font = font;
-        text.text = content;
-        text.fontSize = size;
-        text.fontStyle = style;
-        text.color = color;
-        text.alignment = alignment;
-        text.supportRichText = true;
-        text.lineSpacing = 1.15f;
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        text.raycastTarget = false;
-
-        if (outline)
-        {
-            // Borde oscuro para que el texto se lea sobre cualquier fondo.
-            Outline border = go.AddComponent<Outline>();
-            border.effectColor = new Color(0f, 0f, 0f, 0.75f);
-            border.effectDistance = new Vector2(2f, -2f);
-        }
-        return text;
     }
 
     // =====================================================================
@@ -964,16 +879,6 @@ public static class PrototypeSceneBuilder
             EditorUtility.SetDirty(asset);
         }
         if (assets.Count == 0) Debug.LogWarning("PrototypeSceneBuilder: no se encontró un asset de URP; revisa Project Settings → Graphics.");
-    }
-
-    private static void AddSceneFirstInBuildSettings(string path)
-    {
-        List<EditorBuildSettingsScene> scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(path, true) };
-        foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
-        {
-            if (existing.path != path) scenes.Add(existing);
-        }
-        EditorBuildSettings.scenes = scenes.ToArray();
     }
 
     // =====================================================================

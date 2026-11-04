@@ -455,6 +455,27 @@ public static class ProceduralTextures
         return img;
     }
 
+    /// <summary>
+    /// Fondo de menú: degradado vertical con un leve viñeteado y algo de ruido
+    /// (evita las "bandas" que se ven en los degradados lisos).
+    /// </summary>
+    public static Image MenuBackground(int width, int height, Rgb bottom, Rgb top)
+    {
+        Image img = new Image(width, height);
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            float u = (x + 0.5f) / width, v = (y + 0.5f) / height;
+            Rgb c = Rgb.Lerp(bottom, top, SmoothStep(0f, 1f, v));
+            float dx = u - 0.5f, dy = v - 0.55f;
+            float vignette = 1f - Clamp01((dx * dx + dy * dy) * 1.6f) * 0.45f;
+            float grain = (Hash01(x * 7919 + y * 104729, 131) - 0.5f) * 0.02f;
+            c = c.Scale(vignette);
+            img.Set(x, y, c.R + grain, c.G + grain, c.B + grain, 1f);
+        }
+        return img;
+    }
+
     /// <summary>Cartel de los arcos: fondo de color con letras blancas.</summary>
     public static Image Banner(int width, int height, string text, Rgb background, bool checkered)
     {

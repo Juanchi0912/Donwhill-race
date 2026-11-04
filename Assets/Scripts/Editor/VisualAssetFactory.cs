@@ -26,7 +26,9 @@ public static class VisualAssetFactory
         /// <summary>Mapa normal.</summary>
         Normal,
         /// <summary>Cielo panorámico: se repite en horizontal y no en vertical.</summary>
-        Sky
+        Sky,
+        /// <summary>Fondo de interfaz: no se repite y no necesita mipmaps.</summary>
+        Interface
     }
 
     // =====================================================================
@@ -44,7 +46,7 @@ public static class VisualAssetFactory
         {
             int j = i * 4;
             pixels[i] = new Color32(ToByte(image.Data[j]), ToByte(image.Data[j + 1]), ToByte(image.Data[j + 2]),
-                kind == TextureKind.Color || kind == TextureKind.Normal || kind == TextureKind.Sky ? (byte)255 : ToByte(image.Data[j + 3]));
+                kind == TextureKind.Color || kind == TextureKind.Normal || kind == TextureKind.Sky || kind == TextureKind.Interface ? (byte)255 : ToByte(image.Data[j + 3]));
         }
         temp.SetPixels32(pixels);
         File.WriteAllBytes(ToFullPath(path), temp.EncodeToPNG());
@@ -58,9 +60,9 @@ public static class VisualAssetFactory
             ? TextureImporterAlphaSource.FromInput
             : TextureImporterAlphaSource.None;
         importer.alphaIsTransparency = kind == TextureKind.Decal;
-        importer.mipmapEnabled = true;
-        importer.wrapModeU = TextureWrapMode.Repeat;
-        importer.wrapModeV = kind == TextureKind.Sky || kind == TextureKind.Decal ? TextureWrapMode.Clamp : TextureWrapMode.Repeat;
+        importer.mipmapEnabled = kind != TextureKind.Interface;
+        importer.wrapModeU = kind == TextureKind.Interface ? TextureWrapMode.Clamp : TextureWrapMode.Repeat;
+        importer.wrapModeV = kind == TextureKind.Sky || kind == TextureKind.Decal || kind == TextureKind.Interface ? TextureWrapMode.Clamp : TextureWrapMode.Repeat;
         importer.anisoLevel = anisoLevel;
         importer.maxTextureSize = maxSize;
         importer.textureCompression = TextureImporterCompression.Compressed;
