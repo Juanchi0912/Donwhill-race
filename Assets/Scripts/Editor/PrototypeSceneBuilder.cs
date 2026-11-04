@@ -303,6 +303,22 @@ public static class PrototypeSceneBuilder
         SetFloat(legs, "ankleBack", PM.AnkleBack);
         SetVector3(legs, "hipOffset", VisualAssetFactory.ToUnity(PM.HipOffset));
 
+        // --- Brazos que siguen a los puños del manubrio.
+        RiderArmIK arms = visual.AddComponent<RiderArmIK>();
+        SetReference(arms, "frame", parts.Inclinacion);
+        SetReference(arms, "torso", parts.Torso);
+        SetReference(arms, "leftUpperArm", parts.LeftArm.UpperArm);
+        SetReference(arms, "leftForearm", parts.LeftArm.Forearm);
+        SetReference(arms, "leftHand", parts.LeftArm.Hand);
+        SetReference(arms, "leftGrip", parts.LeftArm.Grip);
+        SetReference(arms, "rightUpperArm", parts.RightArm.UpperArm);
+        SetReference(arms, "rightForearm", parts.RightArm.Forearm);
+        SetReference(arms, "rightHand", parts.RightArm.Hand);
+        SetReference(arms, "rightGrip", parts.RightArm.Grip);
+        SetFloat(arms, "upperArmLength", PM.UpperArmLength);
+        SetFloat(arms, "forearmLength", PM.ForearmLength);
+        SetVector3(arms, "shoulderOffset", VisualAssetFactory.ToUnity(PM.ShoulderOffset));
+
         // --- Barro y polvo de la rueda trasera.
         Vector3 rearContact = new Vector3(0f, 0.06f, PM.RearAxle.Z - 0.05f);
         ParticleSystem mud = CreateSpray("Barro", parts.Root, rearContact, p.Barro, false);

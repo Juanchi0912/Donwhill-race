@@ -20,7 +20,16 @@ public static class BikeModelBuilder
         public Transform Foot;
     }
 
-    /// <summary>Pivotes que necesitan BikeVisuals y RiderLegIK.</summary>
+    /// <summary>Brazo, antebrazo y mano, más el puño del manubrio que sigue la mano.</summary>
+    public sealed class Arm
+    {
+        public Transform UpperArm;
+        public Transform Forearm;
+        public Transform Hand;
+        public Transform Grip;
+    }
+
+    /// <summary>Pivotes que necesitan BikeVisuals, RiderLegIK y RiderArmIK.</summary>
     public sealed class Parts
     {
         public Transform Root;
@@ -35,6 +44,8 @@ public static class BikeModelBuilder
         public Transform Torso;
         public Leg Left;
         public Leg Right;
+        public Arm LeftArm;
+        public Arm RightArm;
     }
 
     public static Parts Build()
@@ -86,6 +97,9 @@ public static class BikeModelBuilder
         Mesh thigh = VisualAssetFactory.SaveMesh(PM.BuildRiderThigh(), "CorredorMuslo");
         Mesh shin = VisualAssetFactory.SaveMesh(PM.BuildRiderShin(), "CorredorCanilla");
         Mesh foot = VisualAssetFactory.SaveMesh(PM.BuildRiderFoot(), "CorredorPie");
+        Mesh upperArm = VisualAssetFactory.SaveMesh(PM.BuildRiderUpperArm(), "CorredorBrazo");
+        Mesh forearm = VisualAssetFactory.SaveMesh(PM.BuildRiderForearm(), "CorredorAntebrazo");
+        Mesh hand = VisualAssetFactory.SaveMesh(PM.BuildRiderHand(), "CorredorMano");
 
         // --- Jerarquía (el orden de los materiales sigue las submallas de ProceduralModels).
         Parts parts = new Parts();
@@ -121,7 +135,39 @@ public static class BikeModelBuilder
         // Piernas articuladas: RiderLegIK las mueve en el juego; aquí se dejan ya apoyadas en los pedales.
         parts.Left = BuildLeg("Izquierda", -1f, parts, thigh, shin, foot, shortsMat, padsMat, blackMat, shoesMat);
         parts.Right = BuildLeg("Derecha", 1f, parts, thigh, shin, foot, shortsMat, padsMat, blackMat, shoesMat);
+
+        // Brazos articulados: RiderArmIK mantiene las manos en los puños, que giran con el manubrio.
+        parts.LeftArm = BuildArm("Izquierdo", -1f, parts, upperArm, forearm, hand, jerseyMat, glovesMat);
+        parts.RightArm = BuildArm("Derecho", 1f, parts, upperArm, forearm, hand, jerseyMat, glovesMat);
         return parts;
+    }
+
+    /// <summary>Brazo → antebrazo → mano, más un punto de agarre en el manubrio (hijo de Direccion).</summary>
+    private static Arm BuildArm(string side, float sign, Parts parts, Mesh upperMesh, Mesh forearmMesh, Mesh handMesh,
+        Material jersey, Material gloves)
+    {
+        SN.Vector3 shoulder = PM.TorsoPivot + new SN.Vector3(PM.ShoulderOffset.X * sign, PM.ShoulderOffset.Y, PM.ShoulderOffset.Z);
+        SN.Vector3 grip = new SN.Vector3(PM.GripRight.X * sign, PM.GripRight.Y, PM.GripRight.Z);
+        SN.Vector3 bend = SN.Vector3.UnitX * sign - SN.Vector3.UnitZ * 0.3f - SN.Vector3.UnitY * 0.3f;
+        PM.SolveTwoBone(shoulder, grip, PM.UpperArmLength, PM.ForearmLength, bend, out SN.Vector3 elbow, out SN.Vector3 wrist);
+
+        Arm arm = new Arm();
+        // El agarre se crea en el mundo (el modelo se arma en el origen) y se cuelga de la dirección.
+        arm.Grip = new GameObject("Agarre" + side).transform;
+        arm.Grip.position = VisualAssetFactory.ToUnity(grip);
+        arm.Grip.SetParent(parts.Direccion, true);
+
+        arm.UpperArm = Child("Brazo" + side, parts.Corredor, VisualAssetFactory.ToUnity(shoulder),
+            VisualAssetFactory.ToUnity(PM.FromAxes(SN.Vector3.Normalize(shoulder - elbow), SN.Vector3.UnitY)));
+        AddRenderer(arm.UpperArm, upperMesh, jersey);
+        arm.Forearm = Child("Antebrazo" + side, arm.UpperArm, Vector3.zero, Quaternion.identity);
+        arm.Forearm.SetPositionAndRotation(VisualAssetFactory.ToUnity(elbow),
+            VisualAssetFactory.ToUnity(PM.FromAxes(SN.Vector3.Normalize(elbow - wrist), SN.Vector3.UnitY)));
+        AddRenderer(arm.Forearm, forearmMesh, jersey);
+        arm.Hand = Child("Mano" + side, arm.Forearm, Vector3.zero, Quaternion.identity);
+        arm.Hand.SetPositionAndRotation(VisualAssetFactory.ToUnity(wrist), arm.Grip.rotation);
+        AddRenderer(arm.Hand, handMesh, gloves);
+        return arm;
     }
 
     /// <summary>Muslo → canilla → pie, colocados con la misma IK que usa el juego (pedales nivelados).</summary>

@@ -31,6 +31,13 @@ public static class ProceduralModels
     public const float AnkleHeight = 0.092f;
     /// <summary>El tobillo queda algo detrás del eje del pedal: se pedalea con la parte delantera del pie.</summary>
     public const float AnkleBack = 0.045f;
+    /// <summary>Hombro derecho respecto del pivote del torso (el izquierdo es el mismo con x negativa).</summary>
+    public static readonly Vector3 ShoulderOffset = new Vector3(0.20f, 0.37f, 0.23f);
+    public const float UpperArmLength = 0.29f;
+    public const float ForearmLength = 0.27f;
+    /// <summary>Centro del puño derecho del manubrio, en coordenadas de la bici (el izquierdo con x negativa).</summary>
+    public static readonly Vector3 GripRight = new Vector3(0.355f, 1.075f, 0.287f);
+
     /// <summary>Cadera derecha respecto del pivote del torso (la izquierda es la misma con x negativa).</summary>
     public static readonly Vector3 HipOffset = new Vector3(0.10f, -0.01f, 0f);
 
@@ -260,6 +267,30 @@ public static class ProceduralModels
         return m;
     }
 
+    /// <summary>Brazo (pivote: hombro). Va a lo largo de -Y local.</summary>
+    public static MeshBuilder BuildRiderUpperArm()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddCapsule(0, Vector3.Zero, new Vector3(0f, -UpperArmLength, 0f), 0.055f, 0.045f, 12);
+        return m;
+    }
+
+    /// <summary>Antebrazo (pivote: codo). Va a lo largo de -Y local.</summary>
+    public static MeshBuilder BuildRiderForearm()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddCapsule(0, Vector3.Zero, new Vector3(0f, -ForearmLength, 0f), 0.045f, 0.036f, 12);
+        return m;
+    }
+
+    /// <summary>Guante cerrado sobre el puño (pivote: el puño del manubrio).</summary>
+    public static MeshBuilder BuildRiderHand()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddEllipsoid(0, Vector3.Zero, Quaternion.Identity, new Vector3(0.055f, 0.042f, 0.05f), 10, 6);
+        return m;
+    }
+
     /// <summary>Muslo (pivote: cadera). Va a lo largo de -Y local; +Z local es el frente de la pierna.</summary>
     public static MeshBuilder BuildRiderThigh()
     {
@@ -294,22 +325,26 @@ public static class ProceduralModels
     /// </summary>
     public static void SolveLeg(Vector3 hip, Vector3 ankleTarget, Vector3 bendDirection, out Vector3 knee, out Vector3 ankle)
     {
-        Vector3 toAnkle = ankleTarget - hip;
-        float distance = toAnkle.Length();
-        Vector3 dir = distance > 1e-5f ? toAnkle / distance : -Vector3.UnitY;
-        float minReach = MathF.Abs(ThighLength - ShinLength) + 0.01f;
-        float maxReach = (ThighLength + ShinLength) * 0.999f;
-        distance = Math.Clamp(distance, minReach, maxReach);
+        SolveTwoBone(hip, ankleTarget, ThighLength, ShinLength, bendDirection, out knee, out ankle);
+    }
+
+    /// <summary>IK de dos segmentos genérica (piernas y brazos); igual a la de TwoBoneIK en el juego.</summary>
+    public static void SolveTwoBone(Vector3 root, Vector3 target, float upper, float lower, Vector3 bendDirection, out Vector3 joint, out Vector3 end)
+    {
+        Vector3 toTarget = target - root;
+        float distance = toTarget.Length();
+        Vector3 dir = distance > 1e-5f ? toTarget / distance : -Vector3.UnitY;
+        distance = Math.Clamp(distance, MathF.Abs(upper - lower) + 0.01f, (upper + lower) * 0.999f);
 
         Vector3 bend = bendDirection - dir * Vector3.Dot(bendDirection, dir);
         bend = bend.LengthSquared() > 1e-8f ? Vector3.Normalize(bend) : MeshBuilder.Perpendicular(dir);
 
-        // Ley de cosenos: ángulo en la cadera entre la línea cadera-tobillo y el muslo.
-        float cos = (ThighLength * ThighLength + distance * distance - ShinLength * ShinLength) / (2f * ThighLength * distance);
+        // Ley de cosenos: ángulo en la raíz entre la línea raíz-objetivo y el primer segmento.
+        float cos = (upper * upper + distance * distance - lower * lower) / (2f * upper * distance);
         cos = Math.Clamp(cos, -1f, 1f);
         float sin = MathF.Sqrt(1f - cos * cos);
-        knee = hip + dir * (ThighLength * cos) + bend * (ThighLength * sin);
-        ankle = hip + dir * distance;
+        joint = root + dir * (upper * cos) + bend * (upper * sin);
+        end = root + dir * distance;
     }
 
     /// <summary>Torso, brazos y cabeza con casco integral (pivote en la cadera; se inclina al agacharse).</summary>
@@ -339,16 +374,12 @@ public static class ProceduralModels
         Vector3 back = -forward;
         m.AddPanel(UpperDecal, torsoCenter + back * 0.117f + axis * 0.03f, x, axis, 0.14f, 0.14f);
 
-        // Brazos con los codos abiertos, como en posición de ataque.
+        // Los brazos son piezas aparte (BuildRiderUpperArm/Forearm/Hand): los mueve RiderArmIK.
+        // Aquí solo van los hombros redondeados, para que la unión con el torso no se note.
         foreach (float side in new[] { -1f, 1f })
         {
-            Vector3 shoulder = new Vector3(0.20f * side, 1.35f, 0.03f) + lift;
-            // Con el cuerpo más alto, los codos se abren y se doblan más (las manos no se mueven).
-            Vector3 elbow = new Vector3(0.36f * side, 1.19f + StandingLift * 0.5f, 0.17f);
-            Vector3 wrist = new Vector3(0.355f * side, 1.08f, 0.27f);
-            m.AddCapsule(UpperJersey, shoulder, elbow, 0.055f, 0.045f, 12);
-            m.AddCapsule(UpperJersey, elbow, wrist, 0.045f, 0.036f, 12);
-            m.AddEllipsoid(UpperGloves, new Vector3(0.355f * side, 1.075f, 0.287f), Quaternion.Identity, new Vector3(0.055f, 0.042f, 0.05f), 10, 6);
+            Vector3 shoulder = TorsoPivot + new Vector3(ShoulderOffset.X * side, ShoulderOffset.Y, ShoulderOffset.Z);
+            m.AddEllipsoid(UpperJersey, shoulder, Quaternion.Identity, new Vector3(0.062f, 0.062f, 0.062f), 12, 8);
         }
 
         // Casco integral con mentonera, visera y antiparras naranjas.
