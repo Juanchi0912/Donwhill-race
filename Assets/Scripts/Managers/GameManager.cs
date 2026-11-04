@@ -1,8 +1,10 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Controla el flujo de la partida: Inicio → Cuenta regresiva → Carrera → Meta.
+/// Al llegar desde el menú, la cuenta regresiva empieza sola; desde la meta, Esc vuelve al menú.
 /// Lleva el cronómetro y guarda el mejor tiempo. Los demás sistemas (bici, HUD, menú)
 /// escuchan sus eventos en lugar de llamarse entre sí, para no acoplarlos.
 /// </summary>
@@ -24,6 +26,10 @@ public class GameManager : MonoBehaviour
     [Header("Pista")]
     [Tooltip("Identificador de la pista; se usa para guardar su mejor tiempo.")]
     [SerializeField] private string trackId = "Pista01";
+
+    [Tooltip("Empieza la cuenta regresiva apenas carga la escena (el menú ya quedó atrás). " +
+             "Si se desactiva, espera a que se presione Enter.")]
+    [SerializeField] private bool startOnLoad = true;
 
     [Header("Cuenta regresiva")]
     [Tooltip("Segundos de la cuenta regresiva antes del ¡YA! (3 → 3, 2, 1).")]
@@ -76,6 +82,7 @@ public class GameManager : MonoBehaviour
     }
 
     private float countdownRemaining;
+    private bool autoStartPending;
 
     private string BestTimeKey => BestTimeKeyPrefix + trackId;
 
@@ -91,6 +98,7 @@ public class GameManager : MonoBehaviour
         Instance = this;
 
         BestTime = PlayerPrefs.GetFloat(BestTimeKey, 0f);
+        autoStartPending = startOnLoad;
     }
 
     private void OnDestroy()
@@ -100,6 +108,15 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
+        // Se arranca en el primer Update y no en Awake/Start: así la bici, la cámara y el HUD
+        // ya se suscribieron a los eventos, sin depender del orden de ejecución de los scripts.
+        if (autoStartPending)
+        {
+            autoStartPending = false;
+            StartRace();
+            return;
+        }
+
         switch (State)
         {
             case RaceState.Inicio:
@@ -124,7 +141,7 @@ public class GameManager : MonoBehaviour
 
             case RaceState.Meta:
                 if (GameInput.ConfirmPressed) StartRace();
-                else if (GameInput.BackPressed) ReturnToTitle();
+                else if (GameInput.BackPressed) ReturnToMenu();
                 break;
         }
     }
@@ -156,7 +173,23 @@ public class GameManager : MonoBehaviour
         RaceFinished?.Invoke(RaceTime, IsNewRecord);
     }
 
-    /// <summary>Vuelve a la pantalla de inicio con la bici en la salida.</summary>
+    /// <summary>Vuelve al menú principal (sin la presentación). Si la escena Menu no existe, reinicia la carrera.</summary>
+    public void ReturnToMenu()
+    {
+        if (Application.CanStreamedLevelBeLoaded(GameSession.MenuScene))
+        {
+            GameSession.SkipIntro = true;
+            SceneManager.LoadScene(GameSession.MenuScene);
+        }
+        else
+        {
+            Debug.LogWarning("GameManager: la escena '" + GameSession.MenuScene + "' no está en Build Settings; se reinicia la carrera. " +
+                             "Créala con DownhillRace → Crear escena del menú.");
+            StartRace();
+        }
+    }
+
+    /// <summary>Vuelve al estado Inicio con la bici en la salida (espera Enter para correr).</summary>
     public void ReturnToTitle()
     {
         RaceTime = 0f;

@@ -161,6 +161,23 @@ public static class GameInput
         }
     }
 
+    /// <summary>Clic izquierdo del mouse (este frame). Sirve para saltar la presentación.</summary>
+    public static bool ClickPressed
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            Mouse mouse = Mouse.current;
+            return mouse != null && mouse.leftButton.wasPressedThisFrame;
+#else
+            return Input.GetMouseButtonDown(0);
+#endif
+        }
+    }
+
+    /// <summary>Cualquier botón de "aceptar" o "volver" (este frame): para pantallas que se saltan.</summary>
+    public static bool AnySkipPressed => ConfirmPressed || BackPressed || JumpPressed || ClickPressed;
+
     private static float ApplyTriggerDeadzone(float value)
     {
         return value < TriggerDeadzone ? 0f : value;
