@@ -2,15 +2,25 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using PM = ProceduralModels;
 using PT = ProceduralTextures;
+using SN = System.Numerics;
 
 /// <summary>
 /// Arma el modelo visual rígido de la bici GY RAVEN y su corredor (casco integral, jersey naranja)
 /// con las mallas de ProceduralModels. La jerarquía permite animar por código:
-/// Inclinacion → (Cuadro, RuedaTrasera, EjeDireccion → Direccion → RuedaDelantera, Corredor → Piernas, Torso).
+/// Inclinacion → (Cuadro, Bielas → Pedales, RuedaTrasera, EjeDireccion → Direccion → RuedaDelantera,
+/// Corredor → (Torso, Muslo → Canilla → Pie de cada lado)).
 /// </summary>
 public static class BikeModelBuilder
 {
-    /// <summary>Pivotes que necesita BikeVisuals.</summary>
+    /// <summary>Muslo, canilla y pie de una pierna.</summary>
+    public sealed class Leg
+    {
+        public Transform Thigh;
+        public Transform Shin;
+        public Transform Foot;
+    }
+
+    /// <summary>Pivotes que necesitan BikeVisuals y RiderLegIK.</summary>
     public sealed class Parts
     {
         public Transform Root;
@@ -18,8 +28,13 @@ public static class BikeModelBuilder
         public Transform RuedaTrasera;
         public Transform RuedaDelantera;
         public Transform Direccion;
-        public Transform Piernas;
+        public Transform Bielas;
+        public Transform PedalIzquierdo;
+        public Transform PedalDerecho;
+        public Transform Corredor;
         public Transform Torso;
+        public Leg Left;
+        public Leg Right;
     }
 
     public static Parts Build()
@@ -65,8 +80,12 @@ public static class BikeModelBuilder
         Mesh frame = VisualAssetFactory.SaveMesh(PM.BuildFrame(), "BiciCuadro");
         Mesh steering = VisualAssetFactory.SaveMesh(PM.BuildSteering(), "BiciDireccion");
         Mesh wheel = VisualAssetFactory.SaveMesh(PM.BuildWheel(), "BiciRueda");
-        Mesh legs = VisualAssetFactory.SaveMesh(PM.BuildRiderLegs(), "CorredorPiernas");
         Mesh upper = VisualAssetFactory.SaveMesh(PM.BuildRiderUpper(), "CorredorTorso");
+        Mesh cranks = VisualAssetFactory.SaveMesh(PM.BuildCranks(), "BiciBielas");
+        Mesh pedal = VisualAssetFactory.SaveMesh(PM.BuildPedal(), "BiciPedal");
+        Mesh thigh = VisualAssetFactory.SaveMesh(PM.BuildRiderThigh(), "CorredorMuslo");
+        Mesh shin = VisualAssetFactory.SaveMesh(PM.BuildRiderShin(), "CorredorCanilla");
+        Mesh foot = VisualAssetFactory.SaveMesh(PM.BuildRiderFoot(), "CorredorPie");
 
         // --- Jerarquía (el orden de los materiales sigue las submallas de ProceduralModels).
         Parts parts = new Parts();
@@ -87,13 +106,45 @@ public static class BikeModelBuilder
         parts.RuedaDelantera = Child("RuedaDelantera", parts.Direccion, Vector3.zero, Quaternion.identity);
         AddRenderer(parts.RuedaDelantera, wheel, wheelMats);
 
-        Transform corredor = Child("Corredor", parts.Inclinacion, Vector3.zero, Quaternion.identity);
-        parts.Piernas = Child("Piernas", corredor, VisualAssetFactory.ToUnity(PM.LegsPivot), Quaternion.identity);
-        AddRenderer(parts.Piernas, legs, shortsMat, padsMat, shoesMat, blackMat);
-        parts.Torso = Child("Torso", corredor, VisualAssetFactory.ToUnity(PM.TorsoPivot), Quaternion.identity);
+        // Bielas: en ángulo 0 el pedal izquierdo va adelante y el derecho atrás (posición de ataque).
+        parts.Bielas = Child("Bielas", parts.Inclinacion, VisualAssetFactory.ToUnity(PM.BottomBracket), Quaternion.identity);
+        AddRenderer(parts.Bielas, cranks, blackMat, metalMat);
+        parts.PedalIzquierdo = Child("PedalIzquierdo", parts.Bielas, new Vector3(-PM.PedalOffsetX, 0f, PM.CrankLength), Quaternion.identity);
+        AddRenderer(parts.PedalIzquierdo, pedal, blackMat, metalMat);
+        parts.PedalDerecho = Child("PedalDerecho", parts.Bielas, new Vector3(PM.PedalOffsetX, 0f, -PM.CrankLength), Quaternion.identity);
+        AddRenderer(parts.PedalDerecho, pedal, blackMat, metalMat);
+
+        parts.Corredor = Child("Corredor", parts.Inclinacion, Vector3.zero, Quaternion.identity);
+        parts.Torso = Child("Torso", parts.Corredor, VisualAssetFactory.ToUnity(PM.TorsoPivot), Quaternion.identity);
         AddRenderer(parts.Torso, upper, jerseyMat, shortsMat, glovesMat, helmetMat, lensMat, blackMat, numberMat);
 
+        // Piernas articuladas: RiderLegIK las mueve en el juego; aquí se dejan ya apoyadas en los pedales.
+        parts.Left = BuildLeg("Izquierda", -1f, parts, thigh, shin, foot, shortsMat, padsMat, blackMat, shoesMat);
+        parts.Right = BuildLeg("Derecha", 1f, parts, thigh, shin, foot, shortsMat, padsMat, blackMat, shoesMat);
         return parts;
+    }
+
+    /// <summary>Muslo → canilla → pie, colocados con la misma IK que usa el juego (pedales nivelados).</summary>
+    private static Leg BuildLeg(string side, float sign, Parts parts, Mesh thighMesh, Mesh shinMesh, Mesh footMesh,
+        Material shorts, Material pads, Material black, Material shoes)
+    {
+        SN.Vector3 hip = PM.TorsoPivot + new SN.Vector3(PM.HipOffset.X * sign, PM.HipOffset.Y, PM.HipOffset.Z);
+        SN.Vector3 pedal = PM.BottomBracket + new SN.Vector3(PM.PedalOffsetX * sign, 0f, -sign * PM.CrankLength);
+        SN.Vector3 target = pedal + SN.Vector3.UnitY * PM.AnkleHeight - SN.Vector3.UnitZ * PM.AnkleBack;
+        PM.SolveLeg(hip, target, SN.Vector3.UnitZ + SN.Vector3.UnitX * sign * 0.15f, out SN.Vector3 knee, out SN.Vector3 ankle);
+
+        Leg leg = new Leg();
+        leg.Thigh = Child("Muslo" + side, parts.Corredor, VisualAssetFactory.ToUnity(hip),
+            VisualAssetFactory.ToUnity(PM.FromAxes(SN.Vector3.Normalize(hip - knee), SN.Vector3.UnitZ)));
+        AddRenderer(leg.Thigh, thighMesh, shorts);
+        leg.Shin = Child("Canilla" + side, leg.Thigh, Vector3.zero, Quaternion.identity);
+        leg.Shin.SetPositionAndRotation(VisualAssetFactory.ToUnity(knee),
+            VisualAssetFactory.ToUnity(PM.FromAxes(SN.Vector3.Normalize(knee - ankle), SN.Vector3.UnitZ)));
+        AddRenderer(leg.Shin, shinMesh, pads, black);
+        leg.Foot = Child("Pie" + side, leg.Shin, Vector3.zero, Quaternion.identity);
+        leg.Foot.SetPositionAndRotation(VisualAssetFactory.ToUnity(ankle), Quaternion.identity);
+        AddRenderer(leg.Foot, footMesh, shoes);
+        return leg;
     }
 
     private static Transform Child(string name, Transform parent, Vector3 localPosition, Quaternion localRotation)

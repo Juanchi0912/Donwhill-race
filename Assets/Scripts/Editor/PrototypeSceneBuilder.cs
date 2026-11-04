@@ -278,9 +278,30 @@ public static class PrototypeSceneBuilder
         SetReference(visuals, "ruedaTrasera", parts.RuedaTrasera);
         SetReference(visuals, "ruedaDelantera", parts.RuedaDelantera);
         SetReference(visuals, "direccion", parts.Direccion);
-        SetReference(visuals, "piernas", parts.Piernas);
+        SetReference(visuals, "bielas", parts.Bielas);
+        SetReference(visuals, "pedalIzquierdo", parts.PedalIzquierdo);
+        SetReference(visuals, "pedalDerecho", parts.PedalDerecho);
+        SetReference(visuals, "corredor", parts.Corredor);
         SetReference(visuals, "torso", parts.Torso);
         SetFloat(visuals, "wheelRadius", PM.WheelRadius);
+
+        // --- Piernas que siguen a los pedales (las medidas salen del mismo modelo).
+        RiderLegIK legs = visual.AddComponent<RiderLegIK>();
+        SetReference(legs, "frame", parts.Inclinacion);
+        SetReference(legs, "torso", parts.Torso);
+        SetReference(legs, "leftThigh", parts.Left.Thigh);
+        SetReference(legs, "leftShin", parts.Left.Shin);
+        SetReference(legs, "leftFoot", parts.Left.Foot);
+        SetReference(legs, "leftPedal", parts.PedalIzquierdo);
+        SetReference(legs, "rightThigh", parts.Right.Thigh);
+        SetReference(legs, "rightShin", parts.Right.Shin);
+        SetReference(legs, "rightFoot", parts.Right.Foot);
+        SetReference(legs, "rightPedal", parts.PedalDerecho);
+        SetFloat(legs, "thighLength", PM.ThighLength);
+        SetFloat(legs, "shinLength", PM.ShinLength);
+        SetFloat(legs, "ankleHeight", PM.AnkleHeight);
+        SetFloat(legs, "ankleBack", PM.AnkleBack);
+        SetVector3(legs, "hipOffset", VisualAssetFactory.ToUnity(PM.HipOffset));
 
         // --- Barro y polvo de la rueda trasera.
         Vector3 rearContact = new Vector3(0f, 0.06f, PM.RearAxle.Z - 0.05f);
@@ -974,6 +995,19 @@ public static class PrototypeSceneBuilder
             return;
         }
         property.objectReferenceValue = value;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void SetVector3(Object target, string field, Vector3 value)
+    {
+        SerializedObject so = new SerializedObject(target);
+        SerializedProperty property = so.FindProperty(field);
+        if (property == null)
+        {
+            Debug.LogError("PrototypeSceneBuilder: " + target.GetType().Name + " no tiene el campo '" + field + "'.");
+            return;
+        }
+        property.vector3Value = value;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

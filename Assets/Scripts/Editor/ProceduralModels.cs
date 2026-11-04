@@ -16,14 +16,30 @@ public static class ProceduralModels
     public static readonly Vector3 FrontAxle = new Vector3(0f, 0.36f, 0.62f);
     /// <summary>Eje de dirección inclinado 27° hacia atrás (ángulo de dirección de 63°, típico de DH).</summary>
     public static readonly Quaternion SteeringRotation = MeshBuilder.AxisAngle(Vector3.UnitX, -27f);
-    public static readonly Vector3 LegsPivot = new Vector3(0f, 0.34f, 0f);
-    public static readonly Vector3 TorsoPivot = new Vector3(0f, 0.98f, -0.20f);
+    /// <summary>Cuánto más alto va el cuerpo al pedalear de pie que sentado.</summary>
+    public const float StandingLift = 0.07f;
+    public static readonly Vector3 TorsoPivot = new Vector3(0f, 0.98f + StandingLift, -0.20f);
+
+    // --- Pedaleo: eje del pedalier, bielas y piernas articuladas (muslo → canilla → pie).
+    public static readonly Vector3 BottomBracket = new Vector3(0f, 0.34f, -0.05f);
+    public const float CrankLength = 0.17f;
+    /// <summary>Distancia lateral del centro de cada pedal al plano de la bici.</summary>
+    public const float PedalOffsetX = 0.135f;
+    public const float ThighLength = 0.41f;
+    public const float ShinLength = 0.41f;
+    /// <summary>Altura del tobillo sobre el eje del pedal (la suela apoya en la plataforma).</summary>
+    public const float AnkleHeight = 0.092f;
+    /// <summary>El tobillo queda algo detrás del eje del pedal: se pedalea con la parte delantera del pie.</summary>
+    public const float AnkleBack = 0.045f;
+    /// <summary>Cadera derecha respecto del pivote del torso (la izquierda es la misma con x negativa).</summary>
+    public static readonly Vector3 HipOffset = new Vector3(0.10f, -0.01f, 0f);
 
     // --- Submallas (cada una lleva su material).
     public const int FrameLivery = 0, FrameBlack = 1, FrameMetal = 2, FrameOrange = 3, FrameGold = 4, FrameDecal = 5, FrameSubmeshes = 6;
     public const int SteerBlack = 0, SteerGold = 1, SteerOrange = 2, SteerBlue = 3, SteerMetal = 4, SteerSubmeshes = 5;
     public const int WheelTire = 0, WheelRim = 1, WheelMetal = 2, WheelSubmeshes = 3;
-    public const int LegShorts = 0, LegPads = 1, LegShoes = 2, LegBlack = 3, LegSubmeshes = 4;
+    public const int CrankBlack = 0, CrankMetal = 1, CrankSubmeshes = 2;
+    public const int ShinPads = 0, ShinBlack = 1, ShinSubmeshes = 2;
     public const int UpperJersey = 0, UpperShorts = 1, UpperGloves = 2, UpperHelmet = 3, UpperLens = 4, UpperBlack = 5, UpperDecal = 6, UpperSubmeshes = 7;
     public const int TreeBark = 0, TreeLeaves = 1, TreeSubmeshes = 2;
 
@@ -96,15 +112,8 @@ public static class ProceduralModels
         m.AddTube(FrameMetal, shockLow - x * 0.02f, shockLow + x * 0.02f, 0.012f, 0.012f, 8);
         m.AddTube(FrameMetal, shockHigh - x * 0.02f, shockHigh + x * 0.02f, 0.012f, 0.012f, 8);
 
-        // Caja de pedalier, bielas, pedales (nivelados: posición de ataque) y transmisión.
+        // Caja de pedalier y transmisión (las bielas y los pedales son piezas aparte: giran al pedalear).
         m.AddTube(FrameBlack, bb - x * 0.05f, bb + x * 0.05f, 0.025f, 0.025f, 12);
-        Vector3 pedalFront = new Vector3(-0.135f, 0.34f, 0.12f);
-        Vector3 pedalBack = new Vector3(0.135f, 0.34f, -0.22f);
-        m.AddBeam(FrameBlack, bb - x * 0.075f, pedalFront + x * 0.05f, 0.016f, 0.026f, x);
-        m.AddBeam(FrameBlack, bb + x * 0.075f, pedalBack - x * 0.05f, 0.016f, 0.026f, x);
-        m.AddBox(FrameBlack, pedalFront, Quaternion.Identity, new Vector3(0.10f, 0.018f, 0.10f));
-        m.AddBox(FrameBlack, pedalBack, Quaternion.Identity, new Vector3(0.10f, 0.018f, 0.10f));
-        m.AddTube(FrameBlack, bb + x * 0.06f, bb + x * 0.065f, 0.09f, 0.09f, 24);
         m.AddTube(FrameMetal, RearAxle + x * 0.055f, RearAxle + x * 0.075f, 0.05f, 0.05f, 20);
         m.AddBeam(FrameMetal, bb + new Vector3(0.066f, 0.09f, 0f), RearAxle + new Vector3(0.066f, 0.05f, 0f), 0.008f, 0.01f, x);
         m.AddBeam(FrameMetal, bb + new Vector3(0.066f, -0.09f, 0f), RearAxle + new Vector3(0.066f, -0.05f, 0f), 0.008f, 0.01f, x);
@@ -216,30 +225,91 @@ public static class ProceduralModels
     // Corredor
     // =====================================================================
 
-    /// <summary>Piernas en posición de ataque (pivote a la altura de los pedales; se encogen al agacharse).</summary>
-    public static MeshBuilder BuildRiderLegs()
+    /// <summary>
+    /// Bielas con el plato (pivote: eje del pedalier; gira sobre X). En ángulo 0 la biela izquierda
+    /// apunta hacia adelante y la derecha hacia atrás: los pedales nivelados de la posición de ataque.
+    /// </summary>
+    public static MeshBuilder BuildCranks()
     {
-        MeshBuilder m = new MeshBuilder(LegSubmeshes);
-        m.SetFrame(LegsPivot, Quaternion.Identity);
-        BuildLeg(m, new Vector3(-0.10f, 0.98f, -0.20f), new Vector3(-0.15f, 0.69f, 0.09f), new Vector3(-0.125f, 0.42f, 0.09f));
-        BuildLeg(m, new Vector3(0.10f, 0.98f, -0.20f), new Vector3(0.17f, 0.67f, -0.04f), new Vector3(0.125f, 0.42f, -0.25f));
+        MeshBuilder m = new MeshBuilder(CrankSubmeshes);
+        m.SetFrame(BottomBracket, Quaternion.Identity);
+        Vector3 x = Vector3.UnitX;
+        Vector3 bb = BottomBracket;
+        Vector3 forward = Vector3.UnitZ;
+
+        m.AddTube(CrankBlack, bb - x * 0.08f, bb + x * 0.08f, 0.012f, 0.012f, 10);
+        m.AddTube(CrankBlack, bb + x * 0.06f, bb + x * 0.065f, 0.09f, 0.09f, 24);
+        m.AddTube(CrankMetal, bb + x * 0.058f, bb + x * 0.067f, 0.035f, 0.035f, 12);
+        m.AddBeam(CrankBlack, bb - x * 0.075f, bb - x * 0.085f + forward * CrankLength, 0.016f, 0.026f, x);
+        m.AddBeam(CrankBlack, bb + x * 0.075f, bb + x * 0.085f - forward * CrankLength, 0.016f, 0.026f, x);
         return m;
     }
 
-    private static void BuildLeg(MeshBuilder m, Vector3 hip, Vector3 knee, Vector3 ankle)
+    /// <summary>Pedal de plataforma (pivote: su eje). Se mantiene nivelado mientras la biela gira.</summary>
+    public static MeshBuilder BuildPedal()
     {
-        m.AddCapsule(LegShorts, hip, knee, 0.078f, 0.06f, 14);
+        MeshBuilder m = new MeshBuilder(CrankSubmeshes);
+        m.AddBox(CrankBlack, Vector3.Zero, Quaternion.Identity, new Vector3(0.10f, 0.018f, 0.10f));
+        // Pines de agarre en la cara de arriba.
+        for (int i = 0; i < 4; i++)
+        {
+            float px = i % 2 == 0 ? -0.035f : 0.035f;
+            float pz = i < 2 ? -0.035f : 0.035f;
+            m.AddBox(CrankMetal, new Vector3(px, 0.012f, pz), Quaternion.Identity, new Vector3(0.008f, 0.008f, 0.008f));
+        }
+        return m;
+    }
 
-        // Rodillera en el frente de la rodilla, continuando como canillera.
-        Vector3 shin = Vector3.Normalize(ankle - knee);
-        Vector3 kneeFront = Vector3.Normalize(knee - (hip + ankle) * 0.5f);
-        m.AddEllipsoid(LegPads, knee + kneeFront * 0.03f, FromAxes(shin, kneeFront), new Vector3(0.062f, 0.08f, 0.052f), 12, 8);
-        m.AddCapsule(LegPads, knee, Vector3.Lerp(knee, ankle, 0.72f), 0.053f, 0.045f, 12);
-        m.AddCapsule(LegBlack, Vector3.Lerp(knee, ankle, 0.65f), ankle, 0.043f, 0.038f, 10);
+    /// <summary>Muslo (pivote: cadera). Va a lo largo de -Y local; +Z local es el frente de la pierna.</summary>
+    public static MeshBuilder BuildRiderThigh()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddCapsule(0, Vector3.Zero, new Vector3(0f, -ThighLength, 0f), 0.08f, 0.062f, 14);
+        return m;
+    }
 
-        // Zapatilla plana de DH sobre el pedal.
-        m.AddBox(LegShoes, ankle + new Vector3(0f, -0.03f, 0.035f), Quaternion.Identity, new Vector3(0.10f, 0.075f, 0.26f));
-        m.AddEllipsoid(LegShoes, ankle + new Vector3(0f, -0.028f, 0.15f), Quaternion.Identity, new Vector3(0.05f, 0.036f, 0.05f), 10, 6);
+    /// <summary>Canilla con rodillera (pivote: rodilla). Va a lo largo de -Y local; la rodillera mira hacia +Z.</summary>
+    public static MeshBuilder BuildRiderShin()
+    {
+        MeshBuilder m = new MeshBuilder(ShinSubmeshes);
+        m.AddEllipsoid(ShinPads, new Vector3(0f, -0.02f, 0.04f), Quaternion.Identity, new Vector3(0.062f, 0.08f, 0.052f), 12, 8);
+        m.AddCapsule(ShinPads, new Vector3(0f, 0f, 0.005f), new Vector3(0f, -ShinLength * 0.7f, 0.005f), 0.054f, 0.046f, 12);
+        m.AddCapsule(ShinBlack, new Vector3(0f, -ShinLength * 0.62f, 0f), new Vector3(0f, -ShinLength, 0f), 0.044f, 0.039f, 10);
+        return m;
+    }
+
+    /// <summary>Zapatilla plana de DH (pivote: tobillo). Se orienta igual que el pedal.</summary>
+    public static MeshBuilder BuildRiderFoot()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddBox(0, new Vector3(0f, -0.045f, AnkleBack), Quaternion.Identity, new Vector3(0.10f, 0.075f, 0.26f));
+        m.AddEllipsoid(0, new Vector3(0f, -0.043f, AnkleBack + 0.12f), Quaternion.Identity, new Vector3(0.05f, 0.036f, 0.05f), 10, 6);
+        return m;
+    }
+
+    /// <summary>
+    /// Resuelve una pierna de dos segmentos (IK analítica): dada la cadera y el tobillo deseado,
+    /// devuelve dónde queda la rodilla. La rodilla se dobla hacia "bendDirection" (adelante y algo afuera).
+    /// Si el pedal queda fuera de alcance, el tobillo se acerca lo necesario.
+    /// </summary>
+    public static void SolveLeg(Vector3 hip, Vector3 ankleTarget, Vector3 bendDirection, out Vector3 knee, out Vector3 ankle)
+    {
+        Vector3 toAnkle = ankleTarget - hip;
+        float distance = toAnkle.Length();
+        Vector3 dir = distance > 1e-5f ? toAnkle / distance : -Vector3.UnitY;
+        float minReach = MathF.Abs(ThighLength - ShinLength) + 0.01f;
+        float maxReach = (ThighLength + ShinLength) * 0.999f;
+        distance = Math.Clamp(distance, minReach, maxReach);
+
+        Vector3 bend = bendDirection - dir * Vector3.Dot(bendDirection, dir);
+        bend = bend.LengthSquared() > 1e-8f ? Vector3.Normalize(bend) : MeshBuilder.Perpendicular(dir);
+
+        // Ley de cosenos: ángulo en la cadera entre la línea cadera-tobillo y el muslo.
+        float cos = (ThighLength * ThighLength + distance * distance - ShinLength * ShinLength) / (2f * ThighLength * distance);
+        cos = Math.Clamp(cos, -1f, 1f);
+        float sin = MathF.Sqrt(1f - cos * cos);
+        knee = hip + dir * (ThighLength * cos) + bend * (ThighLength * sin);
+        ankle = hip + dir * distance;
     }
 
     /// <summary>Torso, brazos y cabeza con casco integral (pivote en la cadera; se inclina al agacharse).</summary>
@@ -249,19 +319,21 @@ public static class ProceduralModels
         m.SetFrame(TorsoPivot, Quaternion.Identity);
         Vector3 x = Vector3.UnitX;
 
-        m.AddEllipsoid(UpperShorts, new Vector3(0f, 0.99f, -0.20f), Quaternion.Identity, new Vector3(0.165f, 0.10f, 0.125f), 14, 8);
+        // De pie sobre los pedales: el cuerpo va más alto que el asiento; las manos siguen en los puños.
+        Vector3 lift = new Vector3(0f, StandingLift, 0f);
+        m.AddEllipsoid(UpperShorts, new Vector3(0f, 0.99f, -0.20f) + lift, Quaternion.Identity, new Vector3(0.165f, 0.10f, 0.125f), 14, 8);
 
         // Torso inclinado hacia adelante.
-        Vector3 waist = new Vector3(0f, 1.0f, -0.17f);
-        Vector3 chest = new Vector3(0f, 1.36f, 0.06f);
+        Vector3 waist = new Vector3(0f, 1.0f, -0.17f) + lift;
+        Vector3 chest = new Vector3(0f, 1.36f, 0.06f) + lift;
         Vector3 axis = Vector3.Normalize(chest - waist);
         Vector3 forward = Vector3.Cross(x, axis);
         Quaternion torsoRotation = FromAxes(axis, forward);
         Vector3 torsoCenter = (waist + chest) * 0.5f;
         float half = Vector3.Distance(waist, chest) * 0.5f;
         m.AddEllipsoid(UpperJersey, torsoCenter, torsoRotation, new Vector3(0.17f, half + 0.06f, 0.115f), 16, 12);
-        m.AddEllipsoid(UpperJersey, new Vector3(0f, 1.355f, 0.045f), torsoRotation, new Vector3(0.215f, 0.075f, 0.10f), 16, 8);
-        m.AddCapsule(UpperBlack, new Vector3(0f, 1.40f, 0.07f), new Vector3(0f, 1.47f, 0.12f), 0.05f, 0.05f, 10);
+        m.AddEllipsoid(UpperJersey, new Vector3(0f, 1.355f, 0.045f) + lift, torsoRotation, new Vector3(0.215f, 0.075f, 0.10f), 16, 8);
+        m.AddCapsule(UpperBlack, new Vector3(0f, 1.40f, 0.07f) + lift, new Vector3(0f, 1.47f, 0.12f) + lift, 0.05f, 0.05f, 10);
 
         // Número en la espalda: es lo que el jugador ve desde la cámara.
         Vector3 back = -forward;
@@ -270,8 +342,9 @@ public static class ProceduralModels
         // Brazos con los codos abiertos, como en posición de ataque.
         foreach (float side in new[] { -1f, 1f })
         {
-            Vector3 shoulder = new Vector3(0.20f * side, 1.35f, 0.03f);
-            Vector3 elbow = new Vector3(0.34f * side, 1.19f, 0.19f);
+            Vector3 shoulder = new Vector3(0.20f * side, 1.35f, 0.03f) + lift;
+            // Con el cuerpo más alto, los codos se abren y se doblan más (las manos no se mueven).
+            Vector3 elbow = new Vector3(0.36f * side, 1.19f + StandingLift * 0.5f, 0.17f);
             Vector3 wrist = new Vector3(0.355f * side, 1.08f, 0.27f);
             m.AddCapsule(UpperJersey, shoulder, elbow, 0.055f, 0.045f, 12);
             m.AddCapsule(UpperJersey, elbow, wrist, 0.045f, 0.036f, 12);
@@ -279,7 +352,7 @@ public static class ProceduralModels
         }
 
         // Casco integral con mentonera, visera y antiparras naranjas.
-        Vector3 head = new Vector3(0f, 1.565f, 0.14f);
+        Vector3 head = new Vector3(0f, 1.565f, 0.14f) + lift;
         Quaternion headRotation = MeshBuilder.AxisAngle(x, -8f);
         Vector3 headUp = Vector3.Transform(Vector3.UnitY, headRotation);
         Vector3 headForward = Vector3.Transform(Vector3.UnitZ, headRotation);
