@@ -90,17 +90,22 @@ Los cambios hechos en Play Mode se pierden al salir: anótalos y aplícalos fuer
 
 - Pedalear (W / RT) empuja con **potencia constante**: mucho al arrancar y menos a más velocidad.
   Ayuda hasta ≈ 50 km/h; más rápido, solo acelera la pendiente.
-- Pedalear a fondo gasta la **energía** (barra abajo a la izquierda) en ≈ 6 s. Sin pedalear,
-  se recupera después de 1.2 s (más rápido con la bici detenida). Cada salto cuesta un poco.
-- Con menos de 30 % de energía las piernas empujan menos. En 0 % quedas **AGOTADO**: no puedes
-  pedalear ni agacharte, y el aire te frena más, hasta recuperar el 35 %.
-- Según la simulación: administrando la energía la bajada dura ≈ 45 s; pedaleando siempre a fondo,
-  ≈ 48 s (te agotas varias veces); sin pedalear nunca, ≈ 88 s.
+- Pedalear a fondo gasta la **energía** (barra abajo a la izquierda) en ≈ 9 s. Sin pedalear,
+  se recupera después de 0.8 s a 10 por segundo (más rápido con la bici detenida). Cada salto cuesta un poco.
+- Con menos de 30 % de energía las piernas empujan menos. En 0 % quedas **AGOTADO**: solo pedaleas
+  lento y sin fuerza, no puedes agacharte y el aire te frena más, hasta recuperar el 35 %.
+- **En bajada la bici acelera sola**: la gravedad a lo largo del suelo está aumentada ×1.5
+  (`BikeController` → **Slope Gravity Multiplier**; 1 = física real). Sin pedalear se llega a ≈ 56 km/h.
+- Según la simulación en la Pista 1: administrando la energía ≈ 37 s; pedaleando siempre a fondo ≈ 40 s
+  (te agotas varias veces); sin pedalear nunca ≈ 54 s.
 
 ### Cómo se ve el pedaleo
 
 - El corredor pedalea **de pie**: las bielas giran al ritmo del pedaleo (más rápido a más velocidad)
   y las piernas siguen a los pedales con IK (`RiderLegIK`), con las rodillas hacia adelante.
+- Los **brazos** siguen a los puños del manubrio (`RiderArmIK`). Pedaleando con energía, el torso se corre
+  hacia el pedal que empuja y los brazos tiran del manubrio por turnos, de izquierda a derecha.
+  Agotado, el pedaleo es lento y casi sin balanceo.
 - Cada pedalada **empuja más con la biela horizontal** y casi nada arriba y abajo, como en una bici real.
 - Pedaleando fuerte, la bici **se balancea de lado a lado** y el cuerpo sube y baja con cada pedalada.
 - Al soltar W hay rueda libre: las bielas se detienen y quedan **niveladas** (un pie adelante y otro atrás).
@@ -114,8 +119,10 @@ Los cambios hechos en Play Mode se pierden al salir: anótalos y aplícalos fuer
 
 | Si sientes que… | Prueba a cambiar |
 |---|---|
-| La energía se acaba muy rápido | `Bici` → RiderStamina → **Drain Per Second** (16 → 12) |
-| Tarda mucho en recuperarse | RiderStamina → **Regen Per Second** (6 → 9) |
+| La energía se acaba muy rápido | `Bici` → RiderStamina → **Drain Per Second** (11 → 8) |
+| Tarda mucho en recuperarse | RiderStamina → **Regen Per Second** (10 → 14) |
+| En bajada va demasiado rápido o lento | BikeController → **Slope Gravity Multiplier** (1.5) |
+| Los brazos se mueven poco o mucho | `BiciVisual` → BikeVisuals → **Pedal Sway** (0.04) |
 | Pedalear no se nota | BikeController → **Pedal Power** (22 → 28) |
 | Pedaleando se va demasiado rápido | BikeController → **Pedal Top Speed** (14 → 12) |
 | Agotarse castiga poco o demasiado | BikeController → **Exhausted Drag Multiplier** (1.5) |
