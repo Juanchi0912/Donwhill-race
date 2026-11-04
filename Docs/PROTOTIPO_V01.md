@@ -2,14 +2,15 @@
 
 Guía rápida de lo construido según [PLAN_PROTOTIPO.md](PLAN_PROTOTIPO.md).
 
-## Crear la escena (un solo clic)
+## Crear las escenas (un clic cada una)
 
 1. Abre el proyecto en Unity 6 y espera a que compile (la consola no debe tener errores rojos).
-2. En el menú superior: **DownhillRace → Crear escena del prototipo**.
-3. Se crea y se abre `Assets/Scenes/Pista01.unity`, que queda **primera** en Build Settings.
-4. Presiona **Play**.
+2. En el menú superior: **DownhillRace → Crear escena del prototipo** (crea `Assets/Scenes/Pista01.unity`).
+3. Luego: **DownhillRace → Crear escena del menú** (crea `Assets/Scenes/Menu.unity`, que queda
+   **primera** en Build Settings y la pista segunda). Ver [MENUS.md](MENUS.md).
+4. Abre `Menu.unity` y presiona **Play** (o abre `Pista01.unity` para probar la carrera directo).
 
-Puedes repetir el paso 2 cuando quieras: reconstruye la escena desde cero (pide confirmación
+Puedes repetir los pasos 2 y 3 cuando quieras: reconstruye la escena desde cero (pide confirmación
 antes de reemplazarla). Los materiales y mallas generados quedan en
 `Assets/Art/Materials/Prototipo/` y `Assets/Art/Models/Prototipo/`.
 
@@ -29,7 +30,8 @@ antes de reemplazarla). Los materiales y mallas generados quedan en
 | `CameraFollow` | `Main Camera` | Sigue al corredor; en el inicio gira a su alrededor |
 | `TrackGenerator` | `Pista` | Malla y collider de la pista (Catmull-Rom, bermas, peralte) |
 | `TrackTrigger` | `Checkpoints/*` | Checkpoints cada 100 m y la meta |
-| `TitleScreen` / `RaceHUD` | `UI` | Pantalla de inicio, HUD y pantalla de meta |
+| `RaceHUD` | `UI` | HUD, controles durante la cuenta y pantalla de meta |
+| `MainMenuController` / `LoadingScreen` | `UI` (escena Menu) | Menús y pantalla de carga ([MENUS.md](MENUS.md)) |
 | `PrototypeSceneBuilder` | (Editor) | Construye toda la escena por código |
 
 ## La pista (≈ 548 m, ≈ 50 m de desnivel)
@@ -51,15 +53,14 @@ una bajada normal, con frenadas y saltos, debería quedar entre 50 y 70 s.
 
 ## Qué probar en Play Mode
 
-- [ ] Se ve **DOWNHILL RACE**, "Prototipo v0.1", "Contrarreloj · Pista 1" y la cámara gira alrededor del corredor.
-- [ ] **Enter** inicia la cuenta 3, 2, 1, ¡YA!; la bici no se mueve antes del ¡YA!.
+- [ ] Desde el menú (Jugar → Carrera) carga la pista y empieza sola la cuenta 3, 2, 1, ¡YA!; la bici no se mueve antes del ¡YA!.
 - [ ] La bici acelera sola en las bajadas; **W** solo ayuda hasta ≈ 40 km/h.
 - [ ] **Shift** agacha al corredor y deja llegar a ≈ 100 km/h, pero gira menos.
 - [ ] Las bermas de las curvas en S y de la curva cerrada ayudan a girar.
 - [ ] Las rampas dan tiempo en el aire; **Espacio** salta.
 - [ ] **R** (o caer fuera de la pista) reaparece en el último checkpoint.
 - [ ] En la meta: "¡META!", tiempo, mejor tiempo y "¡Nuevo récord!" la primera vez.
-- [ ] **Enter** corre otra vez; **Esc** vuelve al inicio (en carrera, Esc reinicia).
+- [ ] **Enter** corre otra vez; **Esc** vuelve al menú principal (en carrera, Esc reinicia).
 - [ ] 60 FPS o más en Game → **Stats**, y la consola sin errores rojos.
 
 Para borrar el récord guardado: selecciona `GameManager`, haz clic derecho en el
