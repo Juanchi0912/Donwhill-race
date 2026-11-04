@@ -29,7 +29,7 @@ public class BikeController : MonoBehaviour
     [Tooltip("Desaceleración por rodadura en m/s², para que la bici se detenga en lo plano.")]
     [SerializeField] private float rollingResistance = 0.3f;
 
-    [Header("Pedaleo y freno")]
+    [Header("Pedaleo")]
     [Tooltip("Aceleración máxima al pedalear desde parado, en m/s².")]
     [SerializeField] private float pedalAcceleration = 7f;
 
@@ -48,6 +48,21 @@ public class BikeController : MonoBehaviour
     [Tooltip("Multiplicador de la resistencia del aire estando agotado: el corredor se endereza para respirar.")]
     [SerializeField] private float exhaustedDragMultiplier = 1.5f;
 
+    [Header("Ritmo de pedaleo")]
+    [Tooltip("Vueltas de biela por segundo al pedalear despacio (arrancando).")]
+    [SerializeField] private float minCadence = 1.1f;
+
+    [Tooltip("Vueltas de biela por segundo cerca del tope del pedaleo.")]
+    [SerializeField] private float maxCadence = 2.2f;
+
+    [Tooltip("Cuánto varía el empuje dentro de cada pedalada (0 = parejo). Da la sensación de golpes de pedal: " +
+             "empuja más con la biela horizontal y casi nada arriba y abajo.")]
+    [SerializeField, Range(0f, 0.8f)] private float pedalStrokePulse = 0.35f;
+
+    [Tooltip("Grados por segundo con que las bielas vuelven a quedar niveladas al dejar de pedalear.")]
+    [SerializeField] private float crankLevelSpeed = 300f;
+
+    [Header("Freno")]
     [Tooltip("Desaceleración del freno en m/s².")]
     [SerializeField] private float brakeDeceleration = 14f;
 
@@ -126,6 +141,9 @@ public class BikeController : MonoBehaviour
     /// <summary>Esfuerzo real de pedaleo en este paso (0 a 1): intensidad × potencia disponible.</summary>
     public float PedalEffort { get; private set; }
 
+    /// <summary>Ángulo de las bielas (grados) interpolado entre pasos de física. En 0, el pie izquierdo va adelante.</summary>
+    public float InterpolatedCrankAngle => Mathf.LerpAngle(previousCrankAngle, crankAngle, InterpolationFactor);
+
     /// <summary>Energía del corredor (puede ser null si no se usa cansancio).</summary>
     public RiderStamina Stamina => stamina;
 
@@ -137,8 +155,7 @@ public class BikeController : MonoBehaviour
     {
         get
         {
-            float t = Time.fixedDeltaTime > 0f ? Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime) : 1f;
-            return Mathf.LerpAngle(previousHeading, heading, t);
+            return Mathf.LerpAngle(previousHeading, heading, InterpolationFactor);
         }
     }
 
@@ -151,6 +168,12 @@ public class BikeController : MonoBehaviour
 
     private float heading;
     private float previousHeading;
+    private float crankAngle;
+    private float previousCrankAngle;
+
+    /// <summary>Fracción del paso de física ya transcurrida en este frame (para interpolar sin tirones).</summary>
+    private static float InterpolationFactor =>
+        Time.fixedDeltaTime > 0f ? Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime) : 1f;
 
     // Input leído en Update y consumido en FixedUpdate.
     private float throttleInput;
@@ -219,6 +242,7 @@ public class BikeController : MonoBehaviour
     private void FixedUpdate()
     {
         previousHeading = heading;
+        previousCrankAngle = crankAngle;
         float dt = Time.fixedDeltaTime;
 
         if (respawnRequested || transform.position.y < fallHeight)
@@ -248,6 +272,7 @@ public class BikeController : MonoBehaviour
         float pedalIntensity = IsGrounded && racing ? throttleInput : 0f;
         float pedalPowerFactor = stamina != null ? stamina.Tick(pedalIntensity, speed < 1f, dt) : 1f;
         PedalEffort = pedalIntensity * pedalPowerFactor;
+        UpdateCranks(speed, dt);
 
         // --- Giro: más lento a alta velocidad, reducido al agacharse y en el aire.
         float speed01 = Mathf.InverseLerp(0f, maxSpeed, speed);
@@ -277,7 +302,9 @@ public class BikeController : MonoBehaviour
             {
                 float accel = Mathf.Min(pedalAcceleration, pedalPower / Mathf.Max(forwardSpeed, 1f));
                 float fade = pedalFadeRange > 0f ? Mathf.Clamp01((pedalTopSpeed - forwardSpeed) / pedalFadeRange) : 1f;
-                velocity += forward * accel * fade * PedalEffort * dt;
+                // Cada pedalada empuja más con la biela horizontal; el promedio sigue siendo el mismo.
+                float stroke = 1f + pedalStrokePulse * (Mathf.Abs(Mathf.Sin(crankAngle * Mathf.Deg2Rad)) * (Mathf.PI * 0.5f) - 1f);
+                velocity += forward * accel * fade * stroke * PedalEffort * dt;
             }
 
             // --- Freno (y freno automático tras la meta, para parar antes de la barrera). Nunca da marcha atrás.
@@ -371,11 +398,31 @@ public class BikeController : MonoBehaviour
         rb.position = position;
         transform.position = position;
         heading = previousHeading = headingDegrees;
+        crankAngle = previousCrankAngle = 0f;
         GroundNormal = Vector3.up;
         IsGrounded = false;
         ForwardSpeed = 0f;
         lastJumpPressTime = -10f;
         Respawned?.Invoke();
+    }
+
+    /// <summary>
+    /// Gira las bielas al ritmo del pedaleo. Sin pedalear hay rueda libre: las bielas se detienen
+    /// y quedan niveladas, con un pie adelante y otro atrás (posición de ataque).
+    /// </summary>
+    private void UpdateCranks(float speed, float dt)
+    {
+        if (PedalEffort > 0.01f)
+        {
+            float cadence = Mathf.Lerp(minCadence, maxCadence, Mathf.InverseLerp(0f, pedalTopSpeed, speed));
+            crankAngle += cadence * 360f * Mathf.Lerp(0.6f, 1f, PedalEffort) * dt;
+        }
+        else
+        {
+            float target = Mathf.Abs(Mathf.DeltaAngle(crankAngle, 0f)) <= 90f ? 0f : 180f;
+            crankAngle = Mathf.MoveTowardsAngle(crankAngle, target, crankLevelSpeed * dt);
+        }
+        crankAngle = Mathf.Repeat(crankAngle, 360f);
     }
 
     private bool CanMove()
