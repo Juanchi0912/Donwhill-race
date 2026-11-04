@@ -97,6 +97,21 @@ Los cambios hechos en Play Mode se pierden al salir: anótalos y aplícalos fuer
 - Según la simulación: administrando la energía la bajada dura ≈ 45 s; pedaleando siempre a fondo,
   ≈ 48 s (te agotas varias veces); sin pedalear nunca, ≈ 88 s.
 
+### Cómo se ve el pedaleo
+
+- El corredor pedalea **de pie**: las bielas giran al ritmo del pedaleo (más rápido a más velocidad)
+  y las piernas siguen a los pedales con IK (`RiderLegIK`), con las rodillas hacia adelante.
+- Cada pedalada **empuja más con la biela horizontal** y casi nada arriba y abajo, como en una bici real.
+- Pedaleando fuerte, la bici **se balancea de lado a lado** y el cuerpo sube y baja con cada pedalada.
+- Al soltar W hay rueda libre: las bielas se detienen y quedan **niveladas** (un pie adelante y otro atrás).
+
+| Si se ve… | Prueba a cambiar (en `BiciVisual`) |
+|---|---|
+| La bici se balancea demasiado | BikeVisuals → **Max Pedal Rock** (7 → 4) |
+| El cuerpo rebota mucho | BikeVisuals → **Pedal Bob** (0.02 → 0.01) |
+| Las piernas giran muy rápido o lento | `Bici` → BikeController → **Min/Max Cadence** |
+| Los golpes de pedal se sienten demasiado | BikeController → **Pedal Stroke Pulse** (0.35 → 0.2) |
+
 | Si sientes que… | Prueba a cambiar |
 |---|---|
 | La energía se acaba muy rápido | `Bici` → RiderStamina → **Drain Per Second** (16 → 12) |
