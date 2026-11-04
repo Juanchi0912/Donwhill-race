@@ -85,3 +85,22 @@ componente y elige **Borrar mejor tiempo**.
 | No se siente la velocidad | Subir **Max Field Of View** (76 → 82) |
 
 Los cambios hechos en Play Mode se pierden al salir: anótalos y aplícalos fuera de Play.
+
+## Pedaleo y energía
+
+- Pedalear (W / RT) empuja con **potencia constante**: mucho al arrancar y menos a más velocidad.
+  Ayuda hasta ≈ 50 km/h; más rápido, solo acelera la pendiente.
+- Pedalear a fondo gasta la **energía** (barra abajo a la izquierda) en ≈ 6 s. Sin pedalear,
+  se recupera después de 1.2 s (más rápido con la bici detenida). Cada salto cuesta un poco.
+- Con menos de 30 % de energía las piernas empujan menos. En 0 % quedas **AGOTADO**: no puedes
+  pedalear ni agacharte, y el aire te frena más, hasta recuperar el 35 %.
+- Según la simulación: administrando la energía la bajada dura ≈ 45 s; pedaleando siempre a fondo,
+  ≈ 48 s (te agotas varias veces); sin pedalear nunca, ≈ 88 s.
+
+| Si sientes que… | Prueba a cambiar |
+|---|---|
+| La energía se acaba muy rápido | `Bici` → RiderStamina → **Drain Per Second** (16 → 12) |
+| Tarda mucho en recuperarse | RiderStamina → **Regen Per Second** (6 → 9) |
+| Pedalear no se nota | BikeController → **Pedal Power** (22 → 28) |
+| Pedaleando se va demasiado rápido | BikeController → **Pedal Top Speed** (14 → 12) |
+| Agotarse castiga poco o demasiado | BikeController → **Exhausted Drag Multiplier** (1.5) |
