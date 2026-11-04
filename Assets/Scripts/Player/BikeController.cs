@@ -66,6 +66,11 @@ public class BikeController : MonoBehaviour
     [Tooltip("Desaceleración del freno en m/s².")]
     [SerializeField] private float brakeDeceleration = 14f;
 
+    [Header("Pendiente")]
+    [Tooltip("Multiplicador de la gravedad a lo largo del suelo. 1 = física real; más de 1 = en bajada " +
+             "la bici gana velocidad más rápido aunque no se pedalee (sensación arcade).")]
+    [SerializeField, Min(0f)] private float slopeGravityMultiplier = 1.5f;
+
     [Header("Giro")]
     [Tooltip("Velocidad de giro a baja velocidad, en grados por segundo.")]
     [SerializeField] private float turnRateSlow = 120f;
@@ -320,6 +325,11 @@ public class BikeController : MonoBehaviour
             forwardSpeed = Vector3.Dot(velocity, forward);
             if (forwardSpeed > 0f) velocity -= forward * Mathf.Min(forwardSpeed, decel * dt);
 
+            // --- Pendiente: la gravedad ya acelera en bajada; aquí se suma un extra a lo largo del suelo
+            // para que bajar se sienta rápido aunque no se pedalee.
+            Vector3 slopePull = Vector3.ProjectOnPlane(Physics.gravity, GroundNormal);
+            velocity += slopePull * (slopeGravityMultiplier - 1f) * dt;
+
             // --- Pegarse al suelo, siguiendo la normal (sirve para las bermas).
             velocity -= GroundNormal * groundStickForce * dt;
         }
@@ -415,7 +425,8 @@ public class BikeController : MonoBehaviour
         if (PedalEffort > 0.01f)
         {
             float cadence = Mathf.Lerp(minCadence, maxCadence, Mathf.InverseLerp(0f, pedalTopSpeed, speed));
-            crankAngle += cadence * 360f * Mathf.Lerp(0.6f, 1f, PedalEffort) * dt;
+            // Con poca fuerza (cansado o agotado) las piernas giran más lento.
+            crankAngle += cadence * 360f * Mathf.Lerp(0.35f, 1f, PedalEffort) * dt;
         }
         else
         {

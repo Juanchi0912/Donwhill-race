@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Energía del corredor. Pedalear la gasta y dejar de pedalear la recupera.
 /// Con poca energía las piernas empujan menos; si llega a cero, el corredor queda agotado:
-/// no puede pedalear ni agacharse hasta recuperar parte de la energía.
+/// solo pedalea lento y sin fuerza, y no puede agacharse, hasta recuperar parte de la energía.
 /// BikeController la actualiza en cada paso de física (Tick).
 /// </summary>
 public class RiderStamina : MonoBehaviour
@@ -14,18 +14,18 @@ public class RiderStamina : MonoBehaviour
     [SerializeField, Min(1f)] private float maxEnergy = 100f;
 
     [Header("Gasto")]
-    [Tooltip("Energía que se gasta por segundo pedaleando a fondo (100 / 16 ≈ 6 s de pedaleo seguido).")]
-    [SerializeField] private float drainPerSecond = 16f;
+    [Tooltip("Energía que se gasta por segundo pedaleando a fondo (100 / 11 ≈ 9 s de pedaleo seguido).")]
+    [SerializeField] private float drainPerSecond = 11f;
 
     [Tooltip("Energía que cuesta cada salto con Espacio.")]
     [SerializeField] private float jumpCost = 5f;
 
     [Header("Recuperación")]
     [Tooltip("Energía que se recupera por segundo sin pedalear.")]
-    [SerializeField] private float regenPerSecond = 6f;
+    [SerializeField] private float regenPerSecond = 10f;
 
     [Tooltip("Segundos sin pedalear antes de empezar a recuperar (evita recuperar entre pedaleo y pedaleo).")]
-    [SerializeField] private float regenDelay = 1.2f;
+    [SerializeField] private float regenDelay = 0.8f;
 
     [Tooltip("Multiplicador de la recuperación con la bici detenida.")]
     [SerializeField] private float restingRegenMultiplier = 1.6f;
@@ -36,6 +36,9 @@ public class RiderStamina : MonoBehaviour
 
     [Tooltip("Potencia que queda (fracción) justo antes de agotarse.")]
     [SerializeField, Range(0f, 1f)] private float tiredPower = 0.35f;
+
+    [Tooltip("Potencia que queda estando agotado: un pedaleo lento, sin fuerza.")]
+    [SerializeField, Range(0f, 1f)] private float exhaustedPower = 0.15f;
 
     [Tooltip("Fracción de energía que hay que recuperar para dejar de estar agotado.")]
     [SerializeField, Range(0f, 1f)] private float recoverThreshold = 0.35f;
@@ -94,7 +97,7 @@ public class RiderStamina : MonoBehaviour
         UpdateExhaustion();
 
         PowerFactor = IsExhausted
-            ? 0f
+            ? exhaustedPower
             : Mathf.Lerp(tiredPower, 1f, tiredThreshold > 0f ? Mathf.Clamp01(Energy01 / tiredThreshold) : 1f);
         return PowerFactor;
     }
