@@ -1,0 +1,151 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// HUD de la carrera: cronómetro, velocidad, mejor tiempo, cuenta regresiva y pantalla de meta.
+/// Los textos solo se reescriben cuando cambia su valor, para no generar basura en cada frame.
+/// </summary>
+public class RaceHUD : MonoBehaviour
+{
+    [Header("Referencias")]
+    [Tooltip("Bici de la que se lee la velocidad.")]
+    [SerializeField] private BikeController bike = null;
+
+    [Tooltip("Raíz del HUD de carrera; se oculta en la pantalla de inicio.")]
+    [SerializeField] private GameObject hudRoot = null;
+
+    [Tooltip("Cronómetro, arriba al centro.")]
+    [SerializeField] private Text timeText = null;
+
+    [Tooltip("Mejor tiempo, en pequeño bajo el cronómetro.")]
+    [SerializeField] private Text bestTimeText = null;
+
+    [Tooltip("Velocidad en km/h, abajo a la derecha.")]
+    [SerializeField] private Text speedText = null;
+
+    [Tooltip("Cuenta regresiva grande (3, 2, 1, ¡YA!).")]
+    [SerializeField] private Text countdownText = null;
+
+    [Header("Pantalla de meta")]
+    [Tooltip("Raíz de la pantalla de meta.")]
+    [SerializeField] private GameObject finishRoot = null;
+
+    [Tooltip("Tiempo final.")]
+    [SerializeField] private Text finishTimeText = null;
+
+    [Tooltip("Mejor tiempo en la pantalla de meta.")]
+    [SerializeField] private Text finishBestText = null;
+
+    [Tooltip("Texto \"¡Nuevo récord!\".")]
+    [SerializeField] private Text newRecordText = null;
+
+    [Header("Animación")]
+    [Tooltip("Cuánto crece el número de la cuenta regresiva al aparecer.")]
+    [SerializeField] private float countdownPunchScale = 1.6f;
+
+    [Tooltip("Parpadeos por segundo del texto de récord.")]
+    [SerializeField] private float recordBlinkSpeed = 2f;
+
+    private GameManager gameManager;
+    private int lastCentiseconds = -1;
+    private int lastSpeed = -1;
+    private string lastCountdown;
+    private float countdownChangeTime;
+
+    private void Start()
+    {
+        gameManager = GameManager.Instance;
+        if (gameManager == null)
+        {
+            Debug.LogWarning("RaceHUD: no hay GameManager en la escena.", this);
+            return;
+        }
+        gameManager.StateChanged += HandleStateChanged;
+        gameManager.RaceFinished += HandleRaceFinished;
+        HandleStateChanged(gameManager.State);
+    }
+
+    private void OnDestroy()
+    {
+        if (gameManager == null) return;
+        gameManager.StateChanged -= HandleStateChanged;
+        gameManager.RaceFinished -= HandleRaceFinished;
+    }
+
+    private void Update()
+    {
+        if (gameManager == null || hudRoot == null || !hudRoot.activeSelf) return;
+
+        // Cronómetro.
+        int centiseconds = Mathf.FloorToInt(gameManager.RaceTime * 100f);
+        if (centiseconds != lastCentiseconds && timeText != null)
+        {
+            lastCentiseconds = centiseconds;
+            timeText.text = GameManager.FormatTime(gameManager.RaceTime);
+        }
+
+        // Velocidad.
+        if (bike != null && speedText != null)
+        {
+            int kmh = Mathf.RoundToInt(bike.SpeedKmh);
+            if (kmh != lastSpeed)
+            {
+                lastSpeed = kmh;
+                speedText.text = kmh.ToString();
+            }
+        }
+
+        // Cuenta regresiva con un pequeño "golpe" de escala en cada número.
+        if (countdownText != null)
+        {
+            string label = gameManager.CountdownLabel;
+            if (label != lastCountdown)
+            {
+                lastCountdown = label;
+                countdownText.text = label;
+                countdownChangeTime = Time.unscaledTime;
+            }
+            float t = Mathf.Clamp01((Time.unscaledTime - countdownChangeTime) / 0.25f);
+            float scale = Mathf.Lerp(countdownPunchScale, 1f, 1f - (1f - t) * (1f - t));
+            countdownText.rectTransform.localScale = Vector3.one * scale;
+        }
+
+        // Récord parpadeando.
+        if (newRecordText != null && newRecordText.gameObject.activeSelf)
+        {
+            Color color = newRecordText.color;
+            color.a = 0.55f + 0.45f * Mathf.Cos(Time.unscaledTime * recordBlinkSpeed * Mathf.PI * 2f);
+            newRecordText.color = color;
+        }
+    }
+
+    private void HandleStateChanged(GameManager.RaceState state)
+    {
+        bool showHud = state != GameManager.RaceState.Inicio;
+        if (hudRoot != null) hudRoot.SetActive(showHud);
+        if (finishRoot != null) finishRoot.SetActive(state == GameManager.RaceState.Meta);
+
+        if (state == GameManager.RaceState.CuentaRegresiva)
+        {
+            lastCentiseconds = -1;
+            lastCountdown = null;
+        }
+        RefreshBestTime();
+    }
+
+    private void HandleRaceFinished(float time, bool isNewRecord)
+    {
+        if (finishTimeText != null) finishTimeText.text = "Tiempo: " + GameManager.FormatTime(time);
+        if (finishBestText != null) finishBestText.text = "Mejor: " + GameManager.FormatTime(gameManager.BestTime);
+        if (newRecordText != null) newRecordText.gameObject.SetActive(isNewRecord);
+        RefreshBestTime();
+    }
+
+    private void RefreshBestTime()
+    {
+        if (bestTimeText == null || gameManager == null) return;
+        bestTimeText.text = gameManager.HasBestTime
+            ? "Mejor  " + GameManager.FormatTime(gameManager.BestTime)
+            : "Mejor  --:--.--";
+    }
+}
