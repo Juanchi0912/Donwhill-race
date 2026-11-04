@@ -26,6 +26,9 @@ public class RaceHUD : MonoBehaviour
     [Tooltip("Cuenta regresiva grande (3, 2, 1, ¡YA!).")]
     [SerializeField] private Text countdownText = null;
 
+    [Tooltip("Panel con los controles; se ve solo durante la cuenta regresiva (opcional).")]
+    [SerializeField] private GameObject controlsPanel = null;
+
     [Header("Pantalla de meta")]
     [Tooltip("Raíz de la pantalla de meta.")]
     [SerializeField] private GameObject finishRoot = null;
@@ -124,6 +127,7 @@ public class RaceHUD : MonoBehaviour
         bool showHud = state != GameManager.RaceState.Inicio;
         if (hudRoot != null) hudRoot.SetActive(showHud);
         if (finishRoot != null) finishRoot.SetActive(state == GameManager.RaceState.Meta);
+        if (controlsPanel != null) controlsPanel.SetActive(state == GameManager.RaceState.CuentaRegresiva);
 
         if (state == GameManager.RaceState.CuentaRegresiva)
         {
