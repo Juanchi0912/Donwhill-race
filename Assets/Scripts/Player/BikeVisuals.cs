@@ -77,6 +77,12 @@ public class BikeVisuals : MonoBehaviour
     [Tooltip("Cuánto contrarresta el corredor el balanceo de la bici (0 = se balancea igual, 1 = queda recto).")]
     [SerializeField, Range(0f, 1f)] private float riderCounterRoll = 0.35f;
 
+    [Tooltip("Cuánto se corre el torso hacia el pedal que empuja, en metros. Hace que los brazos tiren del manubrio por turnos.")]
+    [SerializeField] private float pedalSway = 0.04f;
+
+    [Tooltip("Cuánto gira el torso de lado con cada pedalada, en grados.")]
+    [SerializeField] private float pedalTorsoRoll = 5f;
+
     [Tooltip("Cuánto sube y baja el cuerpo con cada pedalada, en metros.")]
     [SerializeField] private float pedalBob = 0.02f;
 
@@ -178,9 +184,14 @@ public class BikeVisuals : MonoBehaviour
         if (torso != null)
         {
             float bob = Mathf.Cos(2f * crankRad) * pedalBob * currentEffort;
-            torso.localPosition = torsoBasePosition + Vector3.up * (bob - crouchTorsoDrop * currentCrouch);
-            torso.localRotation = torsoBaseRotation *
-                Quaternion.Euler(crouchTorsoPitch * currentCrouch + pedalTorsoPitch * currentEffort, 0f, 0f);
+            // El peso va sobre el pedal que empuja: con el izquierdo (0°-180°) el torso se corre a la izquierda.
+            // Solo con energía: el esfuerzo baja al cansarse y casi desaparece agotado.
+            float sway = -Mathf.Sin(crankRad) * currentEffort;
+            torso.localPosition = torsoBasePosition
+                + Vector3.up * (bob - crouchTorsoDrop * currentCrouch)
+                + Vector3.right * sway * pedalSway;
+            torso.localRotation = torsoBaseRotation * Quaternion.Euler(
+                crouchTorsoPitch * currentCrouch + pedalTorsoPitch * currentEffort, 0f, -sway * pedalTorsoRoll);
         }
     }
 

@@ -62,33 +62,13 @@ public class RiderLegIK : MonoBehaviour
         Vector3 hip = torso.TransformPoint(new Vector3(hipOffset.x * side, hipOffset.y, hipOffset.z));
         Vector3 ankleTarget = pedal.position + pedal.up * ankleHeight - pedal.forward * ankleBack;
 
-        Vector3 toAnkle = ankleTarget - hip;
-        float distance = toAnkle.magnitude;
-        Vector3 dir = distance > 1e-5f ? toAnkle / distance : -frame.up;
-        // Si el pedal queda fuera de alcance, la pierna se estira al máximo hacia él.
-        distance = Mathf.Clamp(distance, Mathf.Abs(thighLength - shinLength) + 0.01f, (thighLength + shinLength) * 0.999f);
-
-        Vector3 bend = Vector3.ProjectOnPlane(forward + frame.right * side * kneeOutward, dir);
-        bend = bend.sqrMagnitude > 1e-8f ? bend.normalized : Vector3.Cross(dir, frame.right).normalized;
-
-        // Ley de cosenos: ángulo en la cadera entre la línea cadera-tobillo y el muslo.
-        float cos = (thighLength * thighLength + distance * distance - shinLength * shinLength) / (2f * thighLength * distance);
-        cos = Mathf.Clamp(cos, -1f, 1f);
-        float sin = Mathf.Sqrt(1f - cos * cos);
-        Vector3 knee = hip + dir * (thighLength * cos) + bend * (thighLength * sin);
-        Vector3 ankle = hip + dir * distance;
+        // La rodilla se dobla hacia adelante y un poco hacia afuera.
+        Vector3 bendHint = forward + frame.right * side * kneeOutward;
+        TwoBoneIK.Solve(hip, ankleTarget, thighLength, shinLength, bendHint, out Vector3 knee, out Vector3 ankle);
 
         // Cada segmento va a lo largo de su -Y local, con el frente (+Z) hacia adelante.
-        thigh.SetPositionAndRotation(hip, SegmentRotation(knee - hip, forward));
-        shin.SetPositionAndRotation(knee, SegmentRotation(ankle - knee, forward));
+        thigh.SetPositionAndRotation(hip, TwoBoneIK.SegmentRotation(knee - hip, forward));
+        shin.SetPositionAndRotation(knee, TwoBoneIK.SegmentRotation(ankle - knee, forward));
         foot.SetPositionAndRotation(ankle, pedal.rotation);
-    }
-
-    private static Quaternion SegmentRotation(Vector3 segment, Vector3 front)
-    {
-        Vector3 dir = segment.normalized;
-        Vector3 facing = Vector3.ProjectOnPlane(front, dir);
-        if (facing.sqrMagnitude < 1e-6f) facing = Vector3.Cross(dir, Vector3.right);
-        return Quaternion.LookRotation(facing.normalized, -dir);
     }
 }
