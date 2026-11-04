@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 /// Genera la malla de la pista a partir de puntos de control unidos con una curva Catmull-Rom.
 /// Perfil transversal: pasto | berma | camino de tierra | berma | pasto.
 /// En las curvas el camino se peralta y la berma exterior sube, para que ayude a girar.
-/// La misma malla sirve de MeshCollider; tiene 3 submallas (tierra, bermas, pasto).
+/// La misma malla sirve de MeshCollider; tiene 4 submallas (tierra, bermas, pasto y carretera de lastre).
 /// </summary>
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider))]
 public class TrackGenerator : MonoBehaviour
@@ -15,7 +15,8 @@ public class TrackGenerator : MonoBehaviour
     {
         Tierra,
         Berma,
-        Pasto
+        Pasto,
+        Carretera
     }
 
     // Puntos del perfil por lado: borde del camino, berma (interior, cima, cima exterior, pie) y fin del pasto.
@@ -29,6 +30,12 @@ public class TrackGenerator : MonoBehaviour
 
     [Tooltip("Medio ancho del camino en cada punto de control (opcional). Si falta, se usa el valor por defecto.")]
     [SerializeField] private List<float> controlHalfWidths = new List<float>();
+
+    [Tooltip("Tipo de suelo en cada punto de control (opcional): 0 = tierra, 1 = carretera de lastre.")]
+    [SerializeField] private List<int> controlGrounds = new List<int>();
+
+    [Tooltip("Fracción de la altura de las bermas en los tramos de carretera (casi planas).")]
+    [SerializeField, Range(0f, 1f)] private float roadBermScale = 0.3f;
 
     [Tooltip("Distancia entre cortes transversales de la malla, en metros.")]
     [SerializeField, Min(0.25f)] private float sampleSpacing = 1f;
@@ -76,6 +83,7 @@ public class TrackGenerator : MonoBehaviour
     // Cantidad de triángulos de cada submalla; sirve para saber la superficie de un impacto.
     [SerializeField, HideInInspector] private int dirtTriangleCount;
     [SerializeField, HideInInspector] private int bermTriangleCount;
+    [SerializeField, HideInInspector] private int grassTriangleCount;
 
     // Datos de los cortes; solo existen después de Generate (se usan al construir la escena).
     private Vector3[] positions;
@@ -83,6 +91,7 @@ public class TrackGenerator : MonoBehaviour
     private Vector3[] rights;
     private float[] distances;
     private float[] halfWidths;
+    private bool[] isRoad;
     private float[] profileOffsets; // [muestra, lado, punto]
     private float[] profileHeights;
 
@@ -148,15 +157,20 @@ public class TrackGenerator : MonoBehaviour
         if (triangleIndex < 0) return Surface.Tierra;
         if (triangleIndex < dirtTriangleCount) return Surface.Tierra;
         if (triangleIndex < dirtTriangleCount + bermTriangleCount) return Surface.Berma;
-        return Surface.Pasto;
+        if (triangleIndex < dirtTriangleCount + bermTriangleCount + grassTriangleCount) return Surface.Pasto;
+        return Surface.Carretera;
     }
 
-    /// <summary>Define el recorrido. Los anchos son opcionales (uno por punto).</summary>
-    public void SetLayout(List<Vector3> points, List<float> pointHalfWidths)
+    /// <summary>Define el recorrido. Los anchos y el tipo de suelo son opcionales (uno por punto).</summary>
+    public void SetLayout(List<Vector3> points, List<float> pointHalfWidths, List<int> pointGrounds = null)
     {
         controlPoints = new List<Vector3>(points);
         controlHalfWidths = pointHalfWidths != null ? new List<float>(pointHalfWidths) : new List<float>();
+        controlGrounds = pointGrounds != null ? new List<int>(pointGrounds) : new List<int>();
     }
+
+    /// <summary>True si la muestra i es un tramo de carretera.</summary>
+    public bool IsRoad(int i) => isRoad != null && isRoad[ClampIndex(i)];
 
     /// <summary>Construye la malla, la asigna al MeshFilter y al MeshCollider, y la devuelve.</summary>
     public Mesh Generate()
@@ -189,6 +203,7 @@ public class TrackGenerator : MonoBehaviour
         List<Vector3> dense = new List<Vector3>();
         List<float> denseWidth = new List<float>();
         List<float> denseLength = new List<float>();
+        List<bool> denseRoad = new List<bool>();
         float length = 0f;
 
         int count = controlPoints.Count;
@@ -210,6 +225,8 @@ public class TrackGenerator : MonoBehaviour
                 dense.Add(p);
                 denseWidth.Add(Mathf.Lerp(w1, w2, t));
                 denseLength.Add(length);
+                // El punto k+1 cierra el tramo k: su suelo vale para todo el segmento.
+                denseRoad.Add(GetControlGround(k + 1) == 1);
             }
         }
 
@@ -220,6 +237,7 @@ public class TrackGenerator : MonoBehaviour
         rights = new Vector3[sampleCount];
         distances = new float[sampleCount];
         halfWidths = new float[sampleCount];
+        isRoad = new bool[sampleCount];
 
         int segment = 0;
         for (int i = 0; i < sampleCount; i++)
@@ -230,6 +248,7 @@ public class TrackGenerator : MonoBehaviour
             float t = span > 0f ? (d - denseLength[segment]) / span : 0f;
             positions[i] = Vector3.Lerp(dense[segment], dense[segment + 1], t);
             halfWidths[i] = Mathf.Lerp(denseWidth[segment], denseWidth[segment + 1], t);
+            isRoad[i] = denseRoad[segment];
             distances[i] = d;
         }
 
@@ -241,6 +260,11 @@ public class TrackGenerator : MonoBehaviour
             if (flat.sqrMagnitude < 0.0001f) flat = Vector3.forward;
             rights[i] = Vector3.Cross(Vector3.up, flat.normalized).normalized;
         }
+    }
+
+    private int GetControlGround(int index)
+    {
+        return controlGrounds != null && index < controlGrounds.Count ? controlGrounds[index] : 0;
     }
 
     private float GetControlHalfWidth(int index)
@@ -350,6 +374,7 @@ public class TrackGenerator : MonoBehaviour
                 // La berma alta va en el lado exterior de la curva (izquierda si gira a la derecha).
                 float outward = Mathf.Max(0f, -side * curvature[i]);
                 float bermHeight = bermBaseHeight + Mathf.Min(bermMaxExtraHeight, outward * bermPerCurvature);
+                if (isRoad[i]) bermHeight *= roadBermScale; // Las carreteras tienen apenas un borde.
 
                 // Peralte: el lado exterior queda más alto.
                 float edgeHeight = -side * hw * bankSlope;
@@ -452,12 +477,14 @@ public class TrackGenerator : MonoBehaviour
         List<int> dirt = new List<int>();
         List<int> berm = new List<int>();
         List<int> grass = new List<int>();
+        List<int> road = new List<int>();
 
         for (int i = 0; i < n - 1; i++)
         {
             for (int s = 0; s < StripCount; s++)
             {
-                List<int> target = s == 0 || s == StripCount - 1 ? grass : (s >= 4 && s <= 7 ? dirt : berm);
+                bool roadStrip = s >= 4 && s <= 7;
+                List<int> target = s == 0 || s == StripCount - 1 ? grass : (roadStrip ? (isRoad[i] ? road : dirt) : berm);
                 int a0 = i * vertsPerSection + s * 2;
                 int b0 = a0 + 1;
                 int a1 = a0 + vertsPerSection;
@@ -470,15 +497,17 @@ public class TrackGenerator : MonoBehaviour
 
         dirtTriangleCount = dirt.Count / 3;
         bermTriangleCount = berm.Count / 3;
+        grassTriangleCount = grass.Count / 3;
 
         Mesh mesh = new Mesh { name = "PistaMalla" };
         if (vertices.Length > 65000) mesh.indexFormat = IndexFormat.UInt32;
         mesh.vertices = vertices;
         mesh.uv = uvs;
-        mesh.subMeshCount = 3;
+        mesh.subMeshCount = 4;
         mesh.SetTriangles(dirt, 0);
         mesh.SetTriangles(berm, 1);
         mesh.SetTriangles(grass, 2);
+        mesh.SetTriangles(road, 3);
         mesh.RecalculateNormals();
         mesh.RecalculateTangents(); // Necesario para los mapas normales de tierra y pasto.
         mesh.RecalculateBounds();

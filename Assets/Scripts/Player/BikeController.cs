@@ -188,6 +188,7 @@ public class BikeController : MonoBehaviour
     private bool respawnRequested;
 
     private bool onGrass;
+    private float zoneDeceleration; // Suma de las zonas que frenan (agua) en las que está la bici.
     private Collider cachedGroundCollider;
     private TrackGenerator cachedTrack;
 
@@ -322,6 +323,7 @@ public class BikeController : MonoBehaviour
             // --- Rodadura y pasto.
             float decel = rollingResistance;
             if (onGrass && forwardSpeed > grassMinSpeed) decel += grassDeceleration;
+            decel += Mathf.Max(0f, zoneDeceleration);
             forwardSpeed = Vector3.Dot(velocity, forward);
             if (forwardSpeed > 0f) velocity -= forward * Mathf.Min(forwardSpeed, decel * dt);
 
@@ -380,6 +382,12 @@ public class BikeController : MonoBehaviour
         checkpointIndex = index;
         checkpointPosition = position;
         checkpointHeading = headingDegrees;
+    }
+
+    /// <summary>Lo llaman las SlowZone al entrar (positivo) y salir (negativo).</summary>
+    public void AddZoneDeceleration(float amount)
+    {
+        zoneDeceleration += amount;
     }
 
     /// <summary>Altura bajo la cual la bici reaparece. La llama el constructor de escena.</summary>
