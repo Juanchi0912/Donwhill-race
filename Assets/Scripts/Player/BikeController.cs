@@ -59,6 +59,12 @@ public class BikeController : MonoBehaviour
     [Tooltip("Aceleración (m/s²) que pega la bici al suelo; ayuda a seguir las bermas y lomas.")]
     [SerializeField] private float groundStickForce = 6f;
 
+    [Tooltip("Desaceleración extra en m/s² al rodar por el pasto, para premiar ir por el camino.")]
+    [SerializeField] private float grassDeceleration = 3f;
+
+    [Tooltip("Por debajo de esta velocidad (m/s) el pasto deja de frenar, para no quedarse atascado.")]
+    [SerializeField] private float grassMinSpeed = 5f;
+
     [Header("Salto y aire")]
     [Tooltip("Velocidad vertical del salto en m/s.")]
     [SerializeField] private float jumpSpeed = 4.5f;
@@ -132,6 +138,10 @@ public class BikeController : MonoBehaviour
     private float lastJumpPressTime = -10f;
     private float lastGroundedTime = -10f;
     private bool respawnRequested;
+
+    private bool onGrass;
+    private Collider cachedGroundCollider;
+    private TrackGenerator cachedTrack;
 
     private Vector3 startPosition;
     private float startHeading;
@@ -247,8 +257,9 @@ public class BikeController : MonoBehaviour
                 velocity -= forward * Mathf.Min(forwardSpeed, brakeDeceleration * brake * dt);
             }
 
-            // --- Rodadura.
+            // --- Rodadura y pasto.
             float decel = rollingResistance;
+            if (onGrass && forwardSpeed > grassMinSpeed) decel += grassDeceleration;
             forwardSpeed = Vector3.Dot(velocity, forward);
             if (forwardSpeed > 0f) velocity -= forward * Mathf.Min(forwardSpeed, decel * dt);
 
@@ -352,11 +363,24 @@ public class BikeController : MonoBehaviour
             IsGrounded = true;
             lastGroundedTime = Time.time;
             GroundNormal = Vector3.Slerp(GroundNormal, hit.normal, 1f - Mathf.Exp(-normalSmoothing * dt)).normalized;
+            onGrass = IsGrassHit(hit);
         }
         else
         {
             IsGrounded = false;
+            onGrass = false;
             GroundNormal = Vector3.Slerp(GroundNormal, Vector3.up, 1f - Mathf.Exp(-normalSmoothing * 0.3f * dt)).normalized;
         }
+    }
+
+    private bool IsGrassHit(RaycastHit hit)
+    {
+        // Se guarda la referencia para no llamar GetComponent en cada paso de física.
+        if (hit.collider != cachedGroundCollider)
+        {
+            cachedGroundCollider = hit.collider;
+            cachedTrack = hit.collider != null ? hit.collider.GetComponent<TrackGenerator>() : null;
+        }
+        return cachedTrack != null && cachedTrack.GetSurface(hit.triangleIndex) == TrackGenerator.Surface.Pasto;
     }
 }
