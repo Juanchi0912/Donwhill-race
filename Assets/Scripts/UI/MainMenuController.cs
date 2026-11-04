@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Navegación del menú: Presentación → Menú principal (Jugar, Configuraciones) → Modos de juego → Carga.
+/// Navegación del menú: Presentación → Menú principal (Jugar, Configuraciones) → Modos de juego → Pistas → Carga.
 /// Solo un panel se ve a la vez. Funciona con mouse, teclado y mando (Esc / Select vuelve atrás).
 /// </summary>
 public class MainMenuController : MonoBehaviour
@@ -14,6 +14,7 @@ public class MainMenuController : MonoBehaviour
         Principal,
         Configuraciones,
         Modos,
+        Pistas,
         Cargando
     }
 
@@ -33,6 +34,9 @@ public class MainMenuController : MonoBehaviour
     [Tooltip("Pantalla de modos de juego.")]
     [SerializeField] private GameObject modesPanel = null;
 
+    [Tooltip("Pantalla para elegir la pista de la carrera.")]
+    [SerializeField] private GameObject tracksPanel = null;
+
     [Tooltip("Pantalla de carga que abre la carrera.")]
     [SerializeField] private LoadingScreen loadingScreen = null;
 
@@ -49,6 +53,11 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button carreraButton = null;
     [SerializeField] private Button freerideButton = null;
     [SerializeField] private Button modesBackButton = null;
+
+    [Header("Botones de pistas")]
+    [SerializeField] private Button track1Button = null;
+    [SerializeField] private Button track2Button = null;
+    [SerializeField] private Button tracksBackButton = null;
 
     [Tooltip("Texto que avisa \"Próximamente\" al elegir un modo que aún no existe.")]
     [SerializeField] private Text modesMessage = null;
@@ -83,6 +92,9 @@ public class MainMenuController : MonoBehaviour
         AddListener(avalanchaButton, () => ChooseMode(GameMode.Avalancha, avalanchaButton));
         AddListener(carreraButton, () => ChooseMode(GameMode.Carrera, carreraButton));
         AddListener(freerideButton, () => ChooseMode(GameMode.Freeride, freerideButton));
+        AddListener(track1Button, () => StartTrack(GameSession.RaceScene));
+        AddListener(track2Button, () => StartTrack(GameSession.LaPazScene));
+        AddListener(tracksBackButton, () => Show(MenuScreen.Modos));
     }
 
     private void Start()
@@ -110,6 +122,10 @@ public class MainMenuController : MonoBehaviour
             case MenuScreen.Configuraciones:
             case MenuScreen.Modos:
                 if (GameInput.BackPressed) Show(MenuScreen.Principal);
+                break;
+
+            case MenuScreen.Pistas:
+                if (GameInput.BackPressed) Show(MenuScreen.Modos);
                 break;
         }
 
@@ -157,8 +173,16 @@ public class MainMenuController : MonoBehaviour
         }
 
         GameSession.SelectedMode = mode;
+        // Sin pantalla de pistas (escena del menú antigua), se corre directo la Pista 1.
+        if (tracksPanel != null) Show(MenuScreen.Pistas);
+        else StartTrack(GameSession.RaceScene);
+    }
+
+    private void StartTrack(string scene)
+    {
+        GameSession.SelectedTrackScene = scene;
         Show(MenuScreen.Cargando);
-        if (loadingScreen != null) loadingScreen.Load(GameSession.RaceScene);
+        if (loadingScreen != null) loadingScreen.Load(scene);
         else Debug.LogError("MainMenuController: falta la referencia a LoadingScreen.", this);
     }
 
@@ -169,6 +193,7 @@ public class MainMenuController : MonoBehaviour
         SetActive(mainPanel, screen == MenuScreen.Principal);
         SetActive(settingsPanel, screen == MenuScreen.Configuraciones);
         SetActive(modesPanel, screen == MenuScreen.Modos);
+        SetActive(tracksPanel, screen == MenuScreen.Pistas);
 
         if (screen == MenuScreen.Presentacion)
         {
@@ -189,6 +214,7 @@ public class MainMenuController : MonoBehaviour
             case MenuScreen.Principal: return playButton;
             case MenuScreen.Configuraciones: return settingsBackButton;
             case MenuScreen.Modos: return carreraButton;
+            case MenuScreen.Pistas: return track1Button;
             default: return null;
         }
     }

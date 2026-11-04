@@ -251,6 +251,218 @@ public static class ProceduralTextures
     }
 
     // =====================================================================
+    // Valle seco (La Paz — Yunguilla): tierra clara, pasto amarillo, matorral
+    // =====================================================================
+
+    /// <summary>Sendero de tierra seca y polvorienta con piedritas sueltas (berm = tierra más rojiza y compacta).</summary>
+    public static void DryDirt(int size, bool berm, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb light = berm ? new Rgb(0.66f, 0.50f, 0.36f) : new Rgb(0.74f, 0.62f, 0.47f);
+        Rgb dark = berm ? new Rgb(0.50f, 0.37f, 0.26f) : new Rgb(0.58f, 0.46f, 0.33f);
+        Rgb dust = new Rgb(0.82f, 0.73f, 0.59f);
+        Rgb stone = new Rgb(0.60f, 0.56f, 0.50f);
+        int seed = berm ? 300 : 310;
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float n = Fbm(u, v, 6, 5, seed);
+            float fine = Fbm(u, v, 40, 2, seed + 1);
+            float dustPatch = SmoothStep(0.55f, 0.7f, Fbm(u, v, 3, 3, seed + 2));
+            // Huella de las ruedas: líneas a lo largo de la pista, más lisas y algo más oscuras.
+            float wobble = (Fbm(u, v, 2, 2, seed + 3) - 0.5f) * 0.1f;
+            float rut = Math.Max(Gauss(u + wobble, 0.35f, 0.05f), Gauss(u + wobble, 0.65f, 0.05f)) * (berm ? 0f : 1f);
+
+            Cellular(u, v, 22, seed + 4, out float f1, out _, out int cell);
+            float pebble = Hash01(cell, seed + 5) > 0.62f ? SmoothStep(0.2f, 0.09f, f1) : 0f;
+
+            Rgb c = Rgb.Lerp(dark, light, SmoothStep(0.25f, 0.75f, n));
+            c = c.Scale(0.92f + fine * 0.16f);
+            c = Rgb.Lerp(c, dust, dustPatch * 0.55f);
+            c = Rgb.Lerp(c, dark.Scale(0.95f), rut * 0.35f);
+            c = Rgb.Lerp(c, stone.Scale(0.8f + Hash01(cell, seed + 6) * 0.4f), pebble);
+            albedo.Set(x, y, c.R, c.G, c.B, Lerp(0.06f, 0.2f, pebble));
+            height[y * size + x] = n * 0.5f + fine * 0.2f + pebble * 0.7f - rut * 0.25f;
+        }
+        normal = NormalFromHeight(height, size, size, 3.5f);
+    }
+
+    /// <summary>Pasto seco de ladera: paja amarilla, manchas verde oliva y tierra al descubierto.</summary>
+    public static void DryGrass(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb straw = new Rgb(0.72f, 0.62f, 0.38f);
+        Rgb brown = new Rgb(0.52f, 0.42f, 0.28f);
+        Rgb olive = new Rgb(0.44f, 0.47f, 0.25f);
+        Rgb soil = new Rgb(0.64f, 0.52f, 0.38f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float n = Fbm(u, v, 4, 4, 320);
+            float blades = Fbm2(u, v, 48, 16, 2, 321);
+            float green = SmoothStep(0.58f, 0.72f, Fbm(u, v, 5, 3, 322));
+            float bare = SmoothStep(0.62f, 0.74f, Fbm(u, v, 4, 3, 323));
+
+            Rgb c = Rgb.Lerp(brown, straw, SmoothStep(0.3f, 0.7f, n * 0.5f + blades * 0.5f));
+            c = Rgb.Lerp(c, olive, green * 0.7f);
+            c = Rgb.Lerp(c, soil.Scale(0.9f + blades * 0.2f), bare * 0.8f);
+            albedo.Set(x, y, c.R, c.G, c.B, 0.05f);
+            height[y * size + x] = blades * 0.6f + n * 0.3f - bare * 0.2f;
+        }
+        normal = NormalFromHeight(height, size, size, 2.5f);
+    }
+
+    /// <summary>Roca clara y seca, con vetas y algo de polvo.</summary>
+    public static void DryRock(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb light = new Rgb(0.70f, 0.66f, 0.58f);
+        Rgb dark = new Rgb(0.45f, 0.42f, 0.38f);
+        Rgb dust = new Rgb(0.74f, 0.63f, 0.48f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float n = Fbm(u, v, 4, 5, 330);
+            Cellular(u, v, 6, 331, out float f1, out float f2, out _);
+            float crack = SmoothStep(0.035f, 0.0f, f2 - f1);
+            float dusty = SmoothStep(0.55f, 0.7f, Fbm(u, v, 4, 3, 332));
+
+            Rgb c = Rgb.Lerp(dark, light, SmoothStep(0.25f, 0.8f, n));
+            c = Rgb.Lerp(c, dust, dusty * 0.5f);
+            c = Rgb.Lerp(c, dark.Scale(0.6f), crack * 0.8f);
+            albedo.Set(x, y, c.R, c.G, c.B, 0.15f);
+            height[y * size + x] = n - crack * 0.5f;
+        }
+        normal = NormalFromHeight(height, size, size, 4f);
+    }
+
+    /// <summary>Follaje de matorral seco: verde oliva apagado con hojas secas cafés.</summary>
+    public static void DryFoliage(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb olive = new Rgb(0.34f, 0.36f, 0.20f);
+        Rgb khaki = new Rgb(0.50f, 0.48f, 0.28f);
+        Rgb dead = new Rgb(0.48f, 0.36f, 0.22f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float leaves = Fbm(u, v, 24, 3, 340);
+            float clumps = Fbm(u, v, 4, 3, 341);
+            float dry = SmoothStep(0.55f, 0.7f, Fbm(u, v, 6, 3, 342));
+            Rgb c = Rgb.Lerp(olive, khaki, SmoothStep(0.3f, 0.75f, leaves * 0.6f + clumps * 0.4f));
+            c = Rgb.Lerp(c, dead, dry * 0.6f);
+            albedo.Set(x, y, c.R, c.G, c.B, 0.08f);
+            height[y * size + x] = leaves * 0.6f + clumps * 0.4f;
+        }
+        normal = NormalFromHeight(height, size, size, 3f);
+    }
+
+    /// <summary>Cielo de valle soleado con calima: azul arriba, blanquecino en el horizonte y nubes finas.</summary>
+    public static Image HazySky(int width, int height)
+    {
+        Image img = new Image(width, height);
+        Rgb horizon = new Rgb(0.86f, 0.86f, 0.82f);
+        Rgb zenith = new Rgb(0.42f, 0.60f, 0.84f);
+        Rgb cloud = new Rgb(0.95f, 0.95f, 0.95f);
+        Rgb ground = new Rgb(0.55f, 0.50f, 0.42f);
+
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            float u = (x + 0.5f) / width, v = (y + 0.5f) / height;
+            float elevation = v * 2f - 1f;
+            Rgb c;
+            if (elevation < 0f)
+            {
+                c = Rgb.Lerp(horizon, ground, SmoothStep(0f, 0.3f, -elevation));
+            }
+            else
+            {
+                c = Rgb.Lerp(horizon, zenith, SmoothStep(0f, 0.6f, elevation));
+                float cloudV = (float)Math.Sqrt(elevation);
+                // Nubes finas y alargadas (cirros), más ralas que en el bosque nublado.
+                float wisps = Fbm2(u, cloudV, 4, 12, 4, 350);
+                float density = SmoothStep(0.58f, 0.8f, wisps) * SmoothStep(0f, 0.1f, elevation) * 0.7f;
+                c = Rgb.Lerp(c, cloud, density);
+            }
+            img.Set(x, y, c.R, c.G, c.B, 1f);
+        }
+        return img;
+    }
+
+    /// <summary>Carretera de lastre: tierra clara compactada con piedrita suelta y huellas de autos.</summary>
+    public static void Gravel(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb light = new Rgb(0.76f, 0.72f, 0.64f);
+        Rgb dark = new Rgb(0.60f, 0.56f, 0.49f);
+        Rgb stone = new Rgb(0.82f, 0.80f, 0.76f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float n = Fbm(u, v, 5, 4, 360);
+            float fine = Fbm(u, v, 64, 2, 361);
+            // Huellas de llantas de auto: dos franjas lisas y más oscuras a lo largo.
+            float wobble = (Fbm(u, v, 2, 2, 362) - 0.5f) * 0.06f;
+            float track = Math.Max(Gauss(u + wobble, 0.25f, 0.06f), Gauss(u + wobble, 0.75f, 0.06f));
+            Cellular(u, v, 40, 363, out float f1, out _, out int cell);
+            float pebble = Hash01(cell, 364) > 0.5f ? SmoothStep(0.28f, 0.12f, f1) : 0f;
+
+            Rgb c = Rgb.Lerp(dark, light, SmoothStep(0.3f, 0.7f, n));
+            c = c.Scale(0.94f + fine * 0.12f);
+            c = Rgb.Lerp(c, dark.Scale(0.92f), track * 0.4f);
+            c = Rgb.Lerp(c, stone.Scale(0.85f + Hash01(cell, 365) * 0.3f), pebble * (1f - track * 0.7f));
+            albedo.Set(x, y, c.R, c.G, c.B, Lerp(0.08f, 0.18f, track));
+            height[y * size + x] = n * 0.3f + fine * 0.2f + pebble * 0.5f - track * 0.2f;
+        }
+        normal = NormalFromHeight(height, size, size, 3f);
+    }
+
+    /// <summary>Concreto gris con poros, grietas finas y manchas (para el salto de concreto).</summary>
+    public static void Concrete(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb light = new Rgb(0.70f, 0.69f, 0.66f);
+        Rgb dark = new Rgb(0.52f, 0.51f, 0.49f);
+        Rgb stain = new Rgb(0.45f, 0.40f, 0.33f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float n = Fbm(u, v, 4, 4, 370);
+            float pores = Fbm(u, v, 96, 1, 371);
+            Cellular(u, v, 5, 372, out float f1, out float f2, out _);
+            float crack = SmoothStep(0.02f, 0.0f, f2 - f1) * SmoothStep(0.5f, 0.7f, Fbm(u, v, 3, 2, 373));
+            float dirt = SmoothStep(0.6f, 0.75f, Fbm(u, v, 3, 3, 374)) * SmoothStep(0.4f, 0f, v);
+
+            Rgb c = Rgb.Lerp(dark, light, SmoothStep(0.25f, 0.75f, n));
+            c = c.Scale(0.95f + pores * 0.1f);
+            c = Rgb.Lerp(c, stain, dirt * 0.6f);
+            c = Rgb.Lerp(c, dark.Scale(0.5f), crack * 0.8f);
+            albedo.Set(x, y, c.R, c.G, c.B, 0.25f);
+            height[y * size + x] = n * 0.2f + pores * 0.2f - crack * 0.6f;
+        }
+        normal = NormalFromHeight(height, size, size, 2f);
+    }
+
+    // =====================================================================
     // Bici GY RAVEN y corredor
     // =====================================================================
 

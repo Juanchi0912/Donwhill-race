@@ -125,6 +125,16 @@ public static class MenuSceneBuilder
         Button modesBack = UiBuilder.Button("Volver", modes, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));
         Footer(modes, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver");
 
+        // --- Pistas de la carrera.
+        RectTransform tracks = UiBuilder.Stretch(UiBuilder.UIObject("PantallaPistas", root));
+        UiBuilder.Background("Fondo", tracks, background, Color.white);
+        UiBuilder.Label("Titulo", tracks, font, "ELIGE LA PISTA", 90, new Vector2(0.5f, 1f), new Vector2(0f, -180f),
+            UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, true);
+        Button track1 = TrackCard(tracks, font, "PISTA 1", "Bosque nublado  ·  0,55 km", new Vector2(-300f, 20f));
+        Button track2 = TrackCard(tracks, font, "LA PAZ — YUNGUILLA", "Valle seco, Azuay  ·  1,3 km", new Vector2(300f, 20f));
+        Button tracksBack = UiBuilder.Button("Volver", tracks, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));
+        Footer(tracks, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver");
+
         // --- Pantalla de carga.
         RectTransform loading = UiBuilder.Stretch(UiBuilder.UIObject("PantallaCarga", root));
         UiBuilder.Background("Fondo", loading, background, Color.white);
@@ -164,11 +174,16 @@ public static class MenuSceneBuilder
         SetReference(controller, "freerideButton", freeride);
         SetReference(controller, "modesBackButton", modesBack);
         SetReference(controller, "modesMessage", message);
+        SetReference(controller, "tracksPanel", tracks.gameObject);
+        SetReference(controller, "track1Button", track1);
+        SetReference(controller, "track2Button", track2);
+        SetReference(controller, "tracksBackButton", tracksBack);
 
         // Estado inicial en el Editor: solo la presentación visible (el controlador lo maneja en Play).
         main.gameObject.SetActive(false);
         config.gameObject.SetActive(false);
         modes.gameObject.SetActive(false);
+        tracks.gameObject.SetActive(false);
         loading.gameObject.SetActive(false);
     }
 
@@ -182,6 +197,17 @@ public static class MenuSceneBuilder
             UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, false, new Vector2(360f, 80f));
         UiBuilder.Label("Detalle", card.transform, font, subtitle, 26, new Vector2(0.5f, 0.5f), new Vector2(0f, -45f),
             available ? UiBuilder.Gold : new Color(1f, 1f, 1f, 0.55f), FontStyle.Italic, TextAnchor.MiddleCenter, false, new Vector2(360f, 50f));
+        return card;
+    }
+
+    /// <summary>Tarjeta de una pista: nombre y una línea con el ambiente y el largo.</summary>
+    private static Button TrackCard(Transform parent, Font font, string title, string subtitle, Vector2 position)
+    {
+        Button card = UiBuilder.Button("Pista " + title, parent, font, string.Empty, 46, position, new Vector2(560f, 260f));
+        UiBuilder.Label("Nombre", card.transform, font, title, 46, new Vector2(0.5f, 0.5f), new Vector2(0f, 35f),
+            UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, false, new Vector2(540f, 80f));
+        UiBuilder.Label("Detalle", card.transform, font, subtitle, 28, new Vector2(0.5f, 0.5f), new Vector2(0f, -45f),
+            UiBuilder.Gold, FontStyle.Italic, TextAnchor.MiddleCenter, false, new Vector2(540f, 50f));
         return card;
     }
 

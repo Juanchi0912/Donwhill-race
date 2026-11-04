@@ -545,6 +545,246 @@ public static class ProceduralModels
         m.AddTriangle(0, ia, ib, ic, new Vector3(center.X, 0.5f, center.Z));
     }
 
+    /// <summary>Matorral seco: varias masas bajas e irregulares y algunas ramitas (corteza + follaje).</summary>
+    public static MeshBuilder BuildBush(int seed)
+    {
+        Random rng = new Random(seed);
+        MeshBuilder m = new MeshBuilder(TreeSubmeshes);
+        int blobs = rng.Next(3, 6);
+        float spread = Range(rng, 0.5f, 0.9f);
+        for (int i = 0; i < blobs; i++)
+        {
+            float a = i / (float)blobs * MathF.PI * 2f + Range(rng, 0f, 0.8f);
+            float r = i == 0 ? 0f : Range(rng, 0.3f, spread);
+            float s = Range(rng, 0.45f, 0.85f);
+            Vector3 c = new Vector3(MathF.Cos(a) * r, s * 0.55f + Range(rng, 0f, 0.25f), MathF.Sin(a) * r);
+            m.AddLumpySphere(TreeLeaves, c, new Vector3(s, s * 0.75f, s), 1, 0.3f, seed * 7 + i, 0.6f);
+        }
+        // Ramitas secas que asoman: dan el aspecto de arbusto de ladera.
+        int twigs = rng.Next(3, 6);
+        for (int i = 0; i < twigs; i++)
+        {
+            float a = Range(rng, 0f, MathF.PI * 2f);
+            Vector3 tip = new Vector3(MathF.Cos(a) * Range(rng, 0.6f, 1.1f), Range(rng, 0.7f, 1.3f), MathF.Sin(a) * Range(rng, 0.6f, 1.1f));
+            m.AddTube(TreeBark, new Vector3(0f, 0.1f, 0f), tip, 0.03f, 0.008f, 5, false);
+        }
+        return m;
+    }
+
+    /// <summary>
+    /// Piedra que sirve de rampa natural: una cuña irregular de largo 1 (en +Z), ancho 1 y alto 1 en la parte
+    /// de atrás; el borde delantero queda a ras del suelo. Se escala en la escena y lleva collider convexo.
+    /// </summary>
+    public static MeshBuilder BuildRockKicker(int seed)
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        const int nx = 4, nz = 5;
+        // Puntos de la cara de arriba: sube de 0 (adelante) a 1 (atrás) con algo de ruido de roca.
+        Vector3[,] top = new Vector3[nx + 1, nz + 1];
+        for (int i = 0; i <= nx; i++)
+        for (int j = 0; j <= nz; j++)
+        {
+            float x = i / (float)nx - 0.5f, z = j / (float)nz;
+            float noise = (MeshBuilder.ValueNoise3(new Vector3(x * 4f, z * 4f, 0.5f), seed) - 0.5f) * 0.12f;
+            float shoulder = 1f - MathF.Pow(MathF.Abs(x) * 2f, 3f) * 0.25f; // Bordes laterales algo más bajos.
+            float h = j == 0 ? -0.02f : MathF.Max(0f, z * shoulder + noise * z);
+            top[i, j] = new Vector3(x * (1f - 0.15f * z), h, z);
+        }
+        for (int i = 0; i < nx; i++)
+        for (int j = 0; j < nz; j++)
+        {
+            FacetTriangle(m, top[i, j], top[i + 1, j], top[i + 1, j + 1], Vector3.UnitY);
+            FacetTriangle(m, top[i, j], top[i + 1, j + 1], top[i, j + 1], Vector3.UnitY);
+        }
+        // Cara trasera, costados y base (cierran la piedra; la base queda bajo el suelo).
+        Vector3 floorOffset = new Vector3(0f, -0.15f, 0f);
+        for (int i = 0; i < nx; i++)
+        {
+            Vector3 a = top[i, nz], b = top[i + 1, nz];
+            Vector3 a0 = new Vector3(a.X, floorOffset.Y, a.Z), b0 = new Vector3(b.X, floorOffset.Y, b.Z);
+            FacetTriangle(m, a, b, b0, Vector3.UnitZ);
+            FacetTriangle(m, a, b0, a0, Vector3.UnitZ);
+        }
+        for (int side = 0; side <= nx; side += nx)
+        {
+            for (int j = 0; j < nz; j++)
+            {
+                Vector3 a = top[side, j], b = top[side, j + 1];
+                Vector3 a0 = new Vector3(a.X, floorOffset.Y, a.Z), b0 = new Vector3(b.X, floorOffset.Y, b.Z);
+                Vector3 outward = side == 0 ? -Vector3.UnitX : Vector3.UnitX;
+                FacetTriangle(m, a, b, b0, outward);
+                FacetTriangle(m, a, b0, a0, outward);
+            }
+        }
+        Vector3 fl = new Vector3(top[0, 0].X, floorOffset.Y, 0f), fr = new Vector3(top[nx, 0].X, floorOffset.Y, 0f);
+        Vector3 bl = new Vector3(top[0, nz].X, floorOffset.Y, 1f), br = new Vector3(top[nx, nz].X, floorOffset.Y, 1f);
+        FacetTriangle(m, fl, fr, br, -Vector3.UnitY);
+        FacetTriangle(m, fl, br, bl, -Vector3.UnitY);
+        return m;
+    }
+
+    /// <summary>Superficie de agua plana de 1 × 1 m mirando hacia arriba (se escala en la escena).</summary>
+    public static MeshBuilder BuildWaterPlane()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddPanel(0, Vector3.Zero, Vector3.UnitX, Vector3.UnitZ, 1f, 1f);
+        return m;
+    }
+
+    /// <summary>Triángulo con vértices propios (facetado) cuya cara mira hacia "outward".</summary>
+    private static void FacetTriangle(MeshBuilder m, Vector3 a, Vector3 b, Vector3 c, Vector3 outward)
+    {
+        int ia = m.AddVertex(a, new Vector2(a.X + a.Z, a.Y));
+        int ib = m.AddVertex(b, new Vector2(b.X + b.Z, b.Y));
+        int ic = m.AddVertex(c, new Vector2(c.X + c.Z, c.Y));
+        m.AddTriangle(0, ia, ib, ic, outward);
+    }
+
+    public const int KickerSurface = 0, KickerDirt = 1, KickerSubmeshes = 2;
+    public const int HouseWall = 0, HouseRoof = 1, HouseDark = 2, HouseSubmeshes = 3;
+
+    /// <summary>
+    /// Rampa de salto natural: una curva de transición (tablones o concreto) apoyada en un montículo
+    /// de tierra con los costados en talud y la parte de atrás bajando al suelo. Medidas unitarias:
+    /// largo 1 hasta el borde de salida (z), alto 1 en el borde, ancho 1 arriba; se escala en la escena.
+    /// </summary>
+    public static MeshBuilder BuildKicker()
+    {
+        MeshBuilder m = new MeshBuilder(KickerSubmeshes);
+        const int steps = 10;
+        const float topHalf = 0.5f, footHalf = 0.8f, back = 0.45f;
+        // Perfil de la transición: empieza plano y se va curvando hacia arriba.
+        Vector3[] left = new Vector3[steps + 1], right = new Vector3[steps + 1];
+        for (int i = 0; i <= steps; i++)
+        {
+            float z = i / (float)steps;
+            float y = MathF.Pow(z, 1.7f);
+            left[i] = new Vector3(-topHalf, y, z);
+            right[i] = new Vector3(topHalf, y, z);
+        }
+        for (int i = 0; i < steps; i++)
+        {
+            // Superficie de la rampa (UV: los tablones van de lado a lado).
+            int a = m.AddVertex(left[i], new Vector2(0f, left[i].Z));
+            int b = m.AddVertex(right[i], new Vector2(1f, right[i].Z));
+            int c = m.AddVertex(right[i + 1], new Vector2(1f, right[i + 1].Z));
+            int d = m.AddVertex(left[i + 1], new Vector2(0f, left[i + 1].Z));
+            m.AddQuad(KickerSurface, a, b, c, d, Vector3.UnitY - Vector3.UnitZ * 0.5f);
+
+            // Costados de tierra en talud, del borde de la rampa al suelo.
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Vector3 top0 = side < 0 ? left[i] : right[i], top1 = side < 0 ? left[i + 1] : right[i + 1];
+                Vector3 foot0 = new Vector3(footHalf * side, 0f, top0.Z), foot1 = new Vector3(footHalf * side, 0f, top1.Z);
+                int t0 = m.AddVertex(top0, new Vector2(top0.Z, top0.Y)), t1 = m.AddVertex(top1, new Vector2(top1.Z, top1.Y));
+                int f0 = m.AddVertex(foot0, new Vector2(foot0.Z, 0f)), f1 = m.AddVertex(foot1, new Vector2(foot1.Z, 0f));
+                m.AddQuad(KickerDirt, t0, t1, f1, f0, new Vector3(side, 0.6f, 0f));
+            }
+        }
+        // Atrás: la tierra baja del borde de salida al suelo (no queda una pared vertical).
+        Vector3 lipL = left[steps], lipR = right[steps];
+        Vector3 backL = new Vector3(-footHalf, 0f, 1f + back), backR = new Vector3(footHalf, 0f, 1f + back);
+        Vector3 cornerL = new Vector3(-footHalf, 0f, 1f), cornerR = new Vector3(footHalf, 0f, 1f);
+        int lL = m.AddVertex(lipL, new Vector2(0f, 1f)), lR = m.AddVertex(lipR, new Vector2(1f, 1f));
+        int bR = m.AddVertex(backR, new Vector2(1f, 0f)), bL = m.AddVertex(backL, new Vector2(0f, 0f));
+        m.AddQuad(KickerDirt, lL, lR, bR, bL, Vector3.UnitZ + Vector3.UnitY);
+        int cL = m.AddVertex(cornerL, new Vector2(0f, 0f)), lL2 = m.AddVertex(lipL, new Vector2(0f, 1f)), bL2 = m.AddVertex(backL, new Vector2(1f, 0f));
+        m.AddTriangle(KickerDirt, cL, lL2, bL2, -Vector3.UnitX);
+        int cR = m.AddVertex(cornerR, new Vector2(0f, 0f)), lR2 = m.AddVertex(lipR, new Vector2(0f, 1f)), bR2 = m.AddVertex(backR, new Vector2(1f, 0f));
+        m.AddTriangle(KickerDirt, cR, lR2, bR2, Vector3.UnitX);
+        return m;
+    }
+
+    /// <summary>Casa de pueblo de una planta: paredes, techo a dos aguas con alero, puerta y ventanas.</summary>
+    public static MeshBuilder BuildHouse(int seed)
+    {
+        Random rng = new Random(seed);
+        MeshBuilder m = new MeshBuilder(HouseSubmeshes);
+        float w = Range(rng, 5f, 8f), d = Range(rng, 4.5f, 6.5f), h = Range(rng, 2.6f, 3.2f);
+        float roof = Range(rng, 1.0f, 1.6f), eave = 0.45f;
+        m.AddBox(HouseWall, new Vector3(0f, h * 0.5f - 0.2f, 0f), Quaternion.Identity, new Vector3(w, h + 0.4f, d), 1.5f);
+
+        // Techo a dos aguas: dos planos inclinados con alero y los dos triángulos de los extremos.
+        Vector3 ridgeA = new Vector3(-w * 0.5f - eave, h + roof, 0f), ridgeB = new Vector3(w * 0.5f + eave, h + roof, 0f);
+        foreach (float side in new[] { -1f, 1f })
+        {
+            Vector3 eaveA = new Vector3(-w * 0.5f - eave, h - 0.15f, side * (d * 0.5f + eave));
+            Vector3 eaveB = new Vector3(w * 0.5f + eave, h - 0.15f, side * (d * 0.5f + eave));
+            int a = m.AddVertex(ridgeA, new Vector2(0f, 1f)), b = m.AddVertex(ridgeB, new Vector2(w, 1f));
+            int c = m.AddVertex(eaveB, new Vector2(w, 0f)), e = m.AddVertex(eaveA, new Vector2(0f, 0f));
+            m.AddQuad(HouseRoof, a, b, c, e, new Vector3(0f, 1f, side));
+            // Cara de abajo del alero (se ve desde la pista).
+            int a2 = m.AddVertex(ridgeA, Vector2.Zero), b2 = m.AddVertex(ridgeB, Vector2.Zero);
+            int c2 = m.AddVertex(eaveB, Vector2.Zero), e2 = m.AddVertex(eaveA, Vector2.Zero);
+            m.AddQuad(HouseRoof, a2, b2, c2, e2, new Vector3(0f, -1f, -side));
+        }
+        foreach (float side in new[] { -1f, 1f })
+        {
+            int a = m.AddVertex(new Vector3(side * w * 0.5f, h, -d * 0.5f), Vector2.Zero);
+            int b = m.AddVertex(new Vector3(side * w * 0.5f, h, d * 0.5f), Vector2.Zero);
+            int c = m.AddVertex(new Vector3(side * w * 0.5f, h + roof, 0f), Vector2.Zero);
+            m.AddTriangle(HouseWall, a, b, c, Vector3.UnitX * side);
+        }
+
+        // Puerta y ventanas oscuras en la fachada (-z) y ventanas atrás.
+        m.AddBox(HouseDark, new Vector3(Range(rng, -w * 0.25f, w * 0.25f), 1.0f, -d * 0.5f - 0.02f), Quaternion.Identity, new Vector3(0.9f, 2f, 0.05f));
+        foreach (float x in new[] { -w * 0.33f, w * 0.33f })
+        {
+            m.AddBox(HouseDark, new Vector3(x, 1.5f, -d * 0.5f - 0.02f), Quaternion.Identity, new Vector3(0.9f, 0.8f, 0.05f));
+            m.AddBox(HouseDark, new Vector3(x, 1.5f, d * 0.5f + 0.02f), Quaternion.Identity, new Vector3(0.9f, 0.8f, 0.05f));
+        }
+        return m;
+    }
+
+    /// <summary>Poste de luz de concreto con cruceta (8 m).</summary>
+    public static MeshBuilder BuildPowerPole()
+    {
+        MeshBuilder m = new MeshBuilder(1);
+        m.AddTube(0, new Vector3(0f, -0.3f, 0f), new Vector3(0f, 8f, 0f), 0.16f, 0.1f, 8);
+        m.AddBeam(0, new Vector3(-0.9f, 7.4f, 0f), new Vector3(0.9f, 7.4f, 0f), 0.12f, 0.12f, Vector3.UnitY);
+        return m;
+    }
+
+    /// <summary>
+    /// Mata de hojas largas que salen del centro: agave (pocas hojas gruesas y bajas)
+    /// o caña de azúcar (muchas hojas finas y altas). Dos caras por hoja.
+    /// </summary>
+    public static MeshBuilder BuildBlades(int seed, float height, int count, float width, float lean)
+    {
+        Random rng = new Random(seed);
+        MeshBuilder m = new MeshBuilder(1);
+        const int steps = 5;
+        for (int f = 0; f < count; f++)
+        {
+            float angle = f / (float)count * MathF.PI * 2f + Range(rng, -0.3f, 0.3f);
+            float h = height * Range(rng, 0.7f, 1.1f);
+            float out_ = h * lean * Range(rng, 0.6f, 1.2f);
+            Vector3 dir = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+            Vector3 side = Vector3.Cross(Vector3.UnitY, dir);
+            int[] top = new int[(steps + 1) * 2], bottom = new int[(steps + 1) * 2];
+            for (int s = 0; s <= steps; s++)
+            {
+                float t = s / (float)steps;
+                // La hoja sube y se abre hacia afuera, más inclinada en la punta.
+                Vector3 c = Vector3.UnitY * h * t + dir * out_ * t * t;
+                float w = width * (1f - t * 0.9f);
+                for (int k = 0; k < 2; k++)
+                {
+                    Vector3 p = c + side * (k == 0 ? -w : w);
+                    top[s * 2 + k] = m.AddVertex(p, new Vector2(k, t));
+                    bottom[s * 2 + k] = m.AddVertex(p, new Vector2(k, t));
+                }
+            }
+            Vector3 normal = Vector3.Normalize(-dir + Vector3.UnitY * lean);
+            for (int s = 0; s < steps; s++)
+            {
+                m.AddQuad(0, top[s * 2], top[s * 2 + 1], top[s * 2 + 3], top[s * 2 + 2], normal);
+                m.AddQuad(0, bottom[s * 2], bottom[s * 2 + 1], bottom[s * 2 + 3], bottom[s * 2 + 2], -normal);
+            }
+        }
+        return m;
+    }
+
     // =====================================================================
     // Utilidades
     // =====================================================================

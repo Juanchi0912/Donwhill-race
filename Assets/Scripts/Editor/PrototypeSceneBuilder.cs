@@ -12,85 +12,61 @@ using PM = ProceduralModels;
 using PT = ProceduralTextures;
 
 /// <summary>
-/// Construye por código la escena completa del prototipo (pista, bici GY RAVEN con su corredor,
-/// bosque, cámara, UI, luces y post-procesado) y la guarda en Assets/Scenes/Pista01.unity.
-/// Así nadie tiene que armar la escena a mano ni editar archivos .unity.
-/// Menú: DownhillRace → Crear escena del prototipo.
+/// Construye por código la escena de una pista a partir de su "Diseño de pista" (TrackLayout): el camino,
+/// la bici GY RAVEN con su corredor, el entorno según el ambiente (bosque nublado o valle seco),
+/// cámara, UI, luces y post-procesado. Así nadie tiene que armar la escena a mano ni editar archivos .unity.
+/// Menú: DownhillRace → Crear escena del prototipo / Crear escena: La Paz — Yunguilla,
+/// o el botón "Construir escena" en el Inspector de cualquier diseño.
 /// </summary>
 public static class PrototypeSceneBuilder
 {
-    private const string ScenePath = "Assets/Scenes/Pista01.unity";
-    private const string VolumeProfilePath = "Assets/Settings/Pista01_PostProceso.asset";
-
-    // Ambiente nublado de montaña: la niebla tiene el color del horizonte del cielo.
-    private static readonly Color FogColor = new Color(0.70f, 0.73f, 0.76f);
-
     private const float StartDistance = 6f;       // Dónde arranca la bici (m desde el inicio de la pista).
     private const float StartArchDistance = 10f;
     private const float FinishBeforeEnd = 28f;    // La meta queda a 28 m del final, para frenar antes de la barrera.
-    private const float CheckpointSpacing = 100f;
     private const float RampAngle = 14f;
 
-    /// <summary>Un tramo del recorrido, descrito como lo recorrería una "tortuga".</summary>
-    private struct Tramo
-    {
-        public string Nombre;
-        public float Largo;      // metros
-        public float Giro;       // grados totales (positivo = derecha)
-        public float Pendiente;  // grados de bajada
-        public float MedioAncho; // medio ancho del camino
-
-        public Tramo(string nombre, float largo, float giro, float pendiente, float medioAncho = 4.5f)
-        {
-            Nombre = nombre;
-            Largo = largo;
-            Giro = giro;
-            Pendiente = pendiente;
-            MedioAncho = medioAncho;
-        }
-    }
-
-    // Recorrido de unos 548 m y 50 m de desnivel, siempre bajando, según la tabla de tramos del plan.
-    // Pendientes elegidas para que una bajada buena dure unos 45-60 s.
-    private static readonly Tramo[] Tramos =
-    {
-        new Tramo("Salida", 30f, 0f, 2f),
-        new Tramo("Recta rápida", 70f, 0f, 9f),
-        new Tramo("Transición", 12f, 0f, 5f),
-        new Tramo("Curva S 1", 38f, 70f, 4.5f),
-        new Tramo("Entre curvas", 10f, 0f, 4.5f),
-        new Tramo("Curva S 2", 40f, -80f, 4.5f),
-        new Tramo("Antes del salto", 35f, 0f, 5f),
-        new Tramo("Caída del salto", 25f, 0f, 9f),
-        new Tramo("Bosque A", 25f, 20f, 5f),
-        new Tramo("Bosque B", 25f, -25f, 5f),
-        new Tramo("Bosque C", 25f, 15f, 5f),
-        new Tramo("Rocas", 50f, -10f, 4.5f, 3.5f),
-        new Tramo("Antes de la cerrada", 15f, 0f, 4f),
-        new Tramo("Curva cerrada", 28f, 135f, 3f),
-        new Tramo("Aproximación salto final", 30f, 0f, 5f),
-        new Tramo("Caída salto final", 30f, 0f, 10f),
-        new Tramo("Sprint", 60f, 0f, 2f),
-    };
-
-    /// <summary>Materiales y mallas compartidos por toda la escena.</summary>
+    /// <summary>Materiales, mallas y ajustes de ambiente compartidos por toda la escena.</summary>
     private class Palette
     {
+        public TrackLayout.Theme Theme;
+        public bool Dry => Theme == TrackLayout.Theme.ValleSeco;
         public Material Tierra, Berma, Pasto, Roca, Rampa, Tronco, Agujas, Hojas, Helecho, Montana, Valle;
-        public Material Blanco, Rojo, Negro, CartelSalida, CartelMeta, Barro, Polvo, Cielo;
+        public Material Blanco, Rojo, Negro, CartelSalida, CartelMeta, Barro, Polvo, Cielo, Agua;
+        public Material Grava, Concreto, Pared, Techo, TechoZinc, Ventana, Poste, Agave, HojasVerdes, Cana;
         public PhysicsMaterial SinFriccion;
-        public Mesh[] Pinos, Frondosos, Rocas, Helechos, Montanas;
-        public Mesh Cartel;
+        public Mesh[] Pinos, Frondosos, Rocas, Helechos, Montanas, Arbustos;
+        public Mesh Cartel, PiedraRampa, PlanoAgua, RampaMalla, PosteLuz;
+        public Mesh[] Casas, Agaves, Canas;
+        public Color FogColor;
+        public float FogStart, FogEnd;
     }
 
-    [MenuItem("DownhillRace/Crear escena del prototipo")]
+    [MenuItem("DownhillRace/Crear escena del prototipo", priority = 0)]
     public static void CreatePrototypeScene()
     {
+        BuildScene(TrackLayoutLibrary.GetPista01());
+    }
+
+    [MenuItem("DownhillRace/Crear escena: La Paz — Yunguilla", priority = 1)]
+    public static void CreateLaPazScene()
+    {
+        BuildScene(TrackLayoutLibrary.GetLaPazYunguilla());
+    }
+
+    /// <summary>Construye y guarda la escena de un diseño de pista (Assets/Scenes/&lt;escena&gt;.unity).</summary>
+    public static void BuildScene(TrackLayout layout)
+    {
+        if (layout == null || layout.Sections.Count == 0 || string.IsNullOrWhiteSpace(layout.SceneName))
+        {
+            EditorUtility.DisplayDialog("Construir escena", "El diseño de pista no tiene tramos o le falta el nombre de la escena.", "Entendido");
+            return;
+        }
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
-        if (File.Exists(ScenePath) && !EditorUtility.DisplayDialog(
-                "Crear escena del prototipo",
-                "Ya existe " + ScenePath + ".\n¿Quieres reemplazarla por una escena nueva?",
+        string scenePath = "Assets/Scenes/" + layout.SceneName + ".unity";
+        if (File.Exists(scenePath) && !EditorUtility.DisplayDialog(
+                "Construir " + layout.DisplayName,
+                "Ya existe " + scenePath + ".\n¿Quieres reemplazarla por una escena nueva?",
                 "Reemplazar", "Cancelar"))
         {
             return;
@@ -100,37 +76,39 @@ public static class PrototypeSceneBuilder
         {
             Progress("Generando texturas y materiales", 0.05f);
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            Palette palette = CreatePalette();
+            Palette palette = CreatePalette(layout.Ambience);
 
-            new GameObject("GameManager").AddComponent<GameManager>();
+            GameManager gameManager = new GameObject("GameManager").AddComponent<GameManager>();
+            SetString(gameManager, "trackId", layout.SceneName);
 
             Progress("Generando la pista", 0.3f);
-            List<float> tramoStarts;
-            TrackGenerator track = BuildTrack(palette, out tramoStarts);
+            List<float> sectionStarts;
+            TrackGenerator track = BuildTrack(layout, palette, out sectionStarts);
 
             Progress("Armando la bici GY RAVEN y el corredor", 0.45f);
             BikeController bike = BuildBikeAndRider(palette, track);
 
-            Progress("Colocando checkpoints, rampas, rocas y bosque", 0.6f);
-            PopulateTrack(track, tramoStarts, palette);
+            Progress("Colocando checkpoints, saltos, rocas y vegetación", 0.6f);
+            PopulateTrack(layout, track, sectionStarts, palette);
             BuildSurroundings(track, palette);
             ConfigureFallHeight(bike, track);
 
             Progress("Creando cámara, luces, post-procesado y UI", 0.85f);
-            BuildCamera(bike);
+            BuildCamera(bike, palette);
             BuildLighting(palette);
-            BuildPostProcessing();
+            BuildPostProcessing(layout, palette);
             BuildUI(bike);
             ApplyPerformanceSettings();
 
             Progress("Guardando la escena", 0.95f);
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            BuildSceneList.Register(ScenePath);
+            EditorSceneManager.SaveScene(scene, scenePath);
+            BuildSceneList.Register(scenePath);
             AssetDatabase.SaveAssets();
 
             Selection.activeGameObject = bike.gameObject;
-            Debug.Log("DownhillRace: escena creada en " + ScenePath + ". Presiona Play para probarla.");
+            Debug.Log("DownhillRace: escena '" + layout.DisplayName + "' creada en " + scenePath + " (" +
+                      track.TotalLength.ToString("0") + " m). Presiona Play para probarla.");
         }
         finally
         {
@@ -142,50 +120,79 @@ public static class PrototypeSceneBuilder
     // Materiales, texturas y mallas
     // =====================================================================
 
-    private static Palette CreatePalette()
+    private static Palette CreatePalette(TrackLayout.Theme theme)
     {
-        Palette p = new Palette();
+        Palette p = new Palette { Theme = theme };
+        bool dry = p.Dry;
 
         // Superficies de la pista (anisotrópico: se ven bien aunque la cámara las mire rasantes).
-        PT.Dirt(512, out PT.Image dirt, out PT.Image dirtN);
-        PT.Berm(512, out PT.Image berm, out PT.Image bermN);
-        PT.ForestFloor(512, out PT.Image grass, out PT.Image grassN);
-        p.Tierra = VisualAssetFactory.Lit("Tierra", Color.white,
-            VisualAssetFactory.SaveTexture(dirt, "Tierra", Kind.ColorSmoothness, 1024, 4),
-            VisualAssetFactory.SaveTexture(dirtN, "TierraNormal", Kind.Normal, 1024, 4), 1f, true);
-        p.Berma = VisualAssetFactory.Lit("Berma", Color.white,
-            VisualAssetFactory.SaveTexture(berm, "Berma", Kind.ColorSmoothness, 512, 4),
-            VisualAssetFactory.SaveTexture(bermN, "BermaNormal", Kind.Normal, 512, 4), 1f, true);
-        p.Pasto = VisualAssetFactory.Lit("Pasto", Color.white,
-            VisualAssetFactory.SaveTexture(grass, "Pasto", Kind.ColorSmoothness, 512, 4),
-            VisualAssetFactory.SaveTexture(grassN, "PastoNormal", Kind.Normal, 512, 4), 1f, true, 0f, 0.8f);
+        // Cada ambiente usa nombres de asset propios, así las dos pistas conviven.
+        PT.Image dirt, dirtN, berm, bermN, grass, grassN;
+        if (dry)
+        {
+            PT.DryDirt(512, false, out dirt, out dirtN);
+            PT.DryDirt(512, true, out berm, out bermN);
+            PT.DryGrass(512, out grass, out grassN);
+        }
+        else
+        {
+            PT.Dirt(512, out dirt, out dirtN);
+            PT.Berm(512, out berm, out bermN);
+            PT.ForestFloor(512, out grass, out grassN);
+        }
+        string tierra = dry ? "TierraSeca" : "Tierra";
+        string bermaName = dry ? "BermaSeca" : "Berma";
+        string pasto = dry ? "PastoSeco" : "Pasto";
+        p.Tierra = VisualAssetFactory.Lit(tierra, Color.white,
+            VisualAssetFactory.SaveTexture(dirt, tierra, Kind.ColorSmoothness, 1024, 4),
+            VisualAssetFactory.SaveTexture(dirtN, tierra + "Normal", Kind.Normal, 1024, 4), 1f, true);
+        p.Berma = VisualAssetFactory.Lit(bermaName, Color.white,
+            VisualAssetFactory.SaveTexture(berm, bermaName, Kind.ColorSmoothness, 512, 4),
+            VisualAssetFactory.SaveTexture(bermN, bermaName + "Normal", Kind.Normal, 512, 4), 1f, true);
+        Texture2D grassTex = VisualAssetFactory.SaveTexture(grass, pasto, Kind.ColorSmoothness, 512, 4);
+        p.Pasto = VisualAssetFactory.Lit(pasto, Color.white, grassTex,
+            VisualAssetFactory.SaveTexture(grassN, pasto + "Normal", Kind.Normal, 512, 4), 1f, true, 0f, 0.8f);
 
         // Rocas, madera de las rampas y árboles.
-        PT.Rock(256, out PT.Image rock, out PT.Image rockN);
+        PT.Image rock, rockN;
+        if (dry) PT.DryRock(256, out rock, out rockN);
+        else PT.Rock(256, out rock, out rockN);
+        string roca = dry ? "RocaSeca" : "Roca";
+        p.Roca = VisualAssetFactory.Lit(roca, Color.white,
+            VisualAssetFactory.SaveTexture(rock, roca, Kind.ColorSmoothness, 256),
+            VisualAssetFactory.SaveTexture(rockN, roca + "Normal", Kind.Normal, 256), 1f, true);
         PT.WoodPlanks(256, out PT.Image wood, out PT.Image woodN);
-        PT.Bark(256, out PT.Image bark, out PT.Image barkN);
-        PT.Foliage(256, true, out PT.Image needles, out PT.Image needlesN);
-        PT.Foliage(256, false, out PT.Image leaves, out PT.Image leavesN);
-        p.Roca = VisualAssetFactory.Lit("Roca", Color.white,
-            VisualAssetFactory.SaveTexture(rock, "Roca", Kind.ColorSmoothness, 256),
-            VisualAssetFactory.SaveTexture(rockN, "RocaNormal", Kind.Normal, 256), 1f, true);
         p.Rampa = VisualAssetFactory.Lit("Rampa", Color.white,
             VisualAssetFactory.SaveTexture(wood, "Madera", Kind.ColorSmoothness, 256),
             VisualAssetFactory.SaveTexture(woodN, "MaderaNormal", Kind.Normal, 256), 1f, true);
+
+        PT.Bark(256, out PT.Image bark, out PT.Image barkN);
+        PT.Foliage(256, true, out PT.Image needles, out PT.Image needlesN);
+        PT.Image leaves, leavesN;
+        if (dry) PT.DryFoliage(256, out leaves, out leavesN);
+        else PT.Foliage(256, false, out leaves, out leavesN);
+        string hojas = dry ? "HojasSecas" : "Hojas";
         Texture2D barkTex = VisualAssetFactory.SaveTexture(bark, "Corteza", Kind.ColorSmoothness, 256);
         Texture2D barkNormal = VisualAssetFactory.SaveTexture(barkN, "CortezaNormal", Kind.Normal, 256);
         Texture2D needlesTex = VisualAssetFactory.SaveTexture(needles, "Agujas", Kind.ColorSmoothness, 256);
         Texture2D needlesNormal = VisualAssetFactory.SaveTexture(needlesN, "AgujasNormal", Kind.Normal, 256);
-        Texture2D leavesTex = VisualAssetFactory.SaveTexture(leaves, "Hojas", Kind.ColorSmoothness, 256);
-        Texture2D leavesNormal = VisualAssetFactory.SaveTexture(leavesN, "HojasNormal", Kind.Normal, 256);
+        Texture2D leavesTex = VisualAssetFactory.SaveTexture(leaves, hojas, Kind.ColorSmoothness, 256);
+        Texture2D leavesNormal = VisualAssetFactory.SaveTexture(leavesN, hojas + "Normal", Kind.Normal, 256);
         p.Tronco = VisualAssetFactory.Lit("Tronco", Color.white, barkTex, barkNormal, 1f, true);
         p.Agujas = VisualAssetFactory.Lit("Agujas", Color.white, needlesTex, needlesNormal, 1f, true);
-        p.Hojas = VisualAssetFactory.Lit("Hojas", Color.white, leavesTex, leavesNormal, 1f, true);
-        p.Helecho = VisualAssetFactory.Lit("Helecho", new Color(0.85f, 1f, 0.8f), leavesTex, null, 1f, true);
+        p.Hojas = VisualAssetFactory.Lit(hojas, Color.white, leavesTex, leavesNormal, 1f, true);
+        // Plantas bajas: helechos en el bosque; matas de pasto seco en el valle.
+        p.Helecho = dry
+            ? VisualAssetFactory.Lit("MataSeca", new Color(1f, 0.95f, 0.8f), grassTex, null, 1f, true)
+            : VisualAssetFactory.Lit("Helecho", new Color(0.85f, 1f, 0.8f), leavesTex, null, 1f, true);
 
         // Paisaje lejano: la niebla les da el tono, así que basta un color.
-        p.Montana = VisualAssetFactory.Lit("Montana", new Color(0.40f, 0.44f, 0.48f), null, null, 0f);
-        p.Valle = VisualAssetFactory.Lit("Valle", new Color(0.18f, 0.27f, 0.14f), null, null, 0f);
+        p.Montana = dry
+            ? VisualAssetFactory.Lit("MontanaSeca", new Color(0.56f, 0.50f, 0.40f), null, null, 0f)
+            : VisualAssetFactory.Lit("Montana", new Color(0.40f, 0.44f, 0.48f), null, null, 0f);
+        p.Valle = dry
+            ? VisualAssetFactory.Lit("ValleSeco", new Color(0.48f, 0.42f, 0.30f), null, null, 0f)
+            : VisualAssetFactory.Lit("Valle", new Color(0.18f, 0.27f, 0.14f), null, null, 0f);
 
         // Decorado simple.
         p.Blanco = VisualAssetFactory.Lit("Blanco", new Color(0.92f, 0.92f, 0.92f), null, null, 0.3f);
@@ -195,13 +202,46 @@ public static class PrototypeSceneBuilder
             VisualAssetFactory.SaveTexture(PT.Banner(1024, 128, "SALIDA", new PT.Rgb(0.12f, 0.35f, 0.82f), false), "CartelSalida", Kind.Color, 1024), null, 0.3f);
         p.CartelMeta = VisualAssetFactory.Lit("CartelMeta", Color.white,
             VisualAssetFactory.SaveTexture(PT.Banner(1024, 128, "META", new PT.Rgb(0.08f, 0.08f, 0.08f), true), "CartelMeta", Kind.Color, 1024), null, 0.3f);
+        p.Agua = VisualAssetFactory.Transparent("Agua", new Color(0.30f, 0.47f, 0.52f, 0.62f), 0.92f);
 
-        // Partículas y cielo.
+        // Pueblo y carretera: lastre, concreto, casas y postes.
+        PT.Gravel(512, out PT.Image gravel, out PT.Image gravelN);
+        p.Grava = VisualAssetFactory.Lit("Carretera", Color.white,
+            VisualAssetFactory.SaveTexture(gravel, "Carretera", Kind.ColorSmoothness, 1024, 4),
+            VisualAssetFactory.SaveTexture(gravelN, "CarreteraNormal", Kind.Normal, 1024, 4), 1f, true);
+        PT.Concrete(256, out PT.Image concrete, out PT.Image concreteN);
+        p.Concreto = VisualAssetFactory.Lit("Concreto", Color.white,
+            VisualAssetFactory.SaveTexture(concrete, "Concreto", Kind.ColorSmoothness, 256),
+            VisualAssetFactory.SaveTexture(concreteN, "ConcretoNormal", Kind.Normal, 256), 1f, true);
+        p.Pared = VisualAssetFactory.Lit("CasaPared", new Color(0.90f, 0.86f, 0.76f), null, null, 0.1f);
+        p.Techo = VisualAssetFactory.Lit("CasaTeja", new Color(0.70f, 0.32f, 0.20f), null, null, 0.15f);
+        p.TechoZinc = VisualAssetFactory.Lit("CasaZinc", new Color(0.62f, 0.64f, 0.66f), null, null, 0.6f, false, 0.6f);
+        p.Ventana = VisualAssetFactory.Lit("CasaVentana", new Color(0.12f, 0.12f, 0.13f), null, null, 0.5f);
+        p.Poste = VisualAssetFactory.Lit("PosteConcreto", new Color(0.65f, 0.64f, 0.62f), null, null, 0.1f);
+        // Plantas del valle: agaves verde azulado, follaje tropical y caña de azúcar.
+        PT.Foliage(256, false, out PT.Image greenLeaves, out PT.Image greenLeavesN);
+        Texture2D greenTex = VisualAssetFactory.SaveTexture(greenLeaves, "HojasVerdes", Kind.ColorSmoothness, 256);
+        p.HojasVerdes = VisualAssetFactory.Lit("HojasVerdes", Color.white, greenTex,
+            VisualAssetFactory.SaveTexture(greenLeavesN, "HojasVerdesNormal", Kind.Normal, 256), 1f, true);
+        p.Agave = VisualAssetFactory.Lit("Agave", new Color(0.62f, 0.80f, 0.62f), greenTex, null, 1f, true);
+        p.Cana = VisualAssetFactory.Lit("Cana", new Color(0.85f, 1f, 0.6f), greenTex, null, 1f, true);
+
+        // Partículas y cielo. En el valle seco hay más polvo y más claro.
         Texture2D blob = VisualAssetFactory.SaveTexture(PT.SoftBlob(64), "Particula", Kind.Decal, 64);
-        p.Barro = VisualAssetFactory.Particles("ParticulaBarro", blob, new Color(0.24f, 0.17f, 0.11f, 1f));
-        p.Polvo = VisualAssetFactory.Particles("ParticulaPolvo", blob, new Color(0.55f, 0.47f, 0.38f, 0.45f));
-        p.Cielo = VisualAssetFactory.PanoramicSky("CieloNublado",
-            VisualAssetFactory.SaveTexture(PT.OvercastSky(1024, 512), "CieloNublado", Kind.Sky, 1024), 1f);
+        p.Barro = dry
+            ? VisualAssetFactory.Particles("ParticulaTierraSeca", blob, new Color(0.55f, 0.44f, 0.32f, 1f))
+            : VisualAssetFactory.Particles("ParticulaBarro", blob, new Color(0.24f, 0.17f, 0.11f, 1f));
+        p.Polvo = dry
+            ? VisualAssetFactory.Particles("ParticulaPolvoSeco", blob, new Color(0.80f, 0.70f, 0.55f, 0.55f))
+            : VisualAssetFactory.Particles("ParticulaPolvo", blob, new Color(0.55f, 0.47f, 0.38f, 0.45f));
+        p.Cielo = dry
+            ? VisualAssetFactory.PanoramicSky("CieloValle", VisualAssetFactory.SaveTexture(PT.HazySky(1024, 512), "CieloValle", Kind.Sky, 1024), 1f)
+            : VisualAssetFactory.PanoramicSky("CieloNublado", VisualAssetFactory.SaveTexture(PT.OvercastSky(1024, 512), "CieloNublado", Kind.Sky, 1024), 1f);
+
+        // Niebla: en el bosque, densa y gris; en el valle, una calima cálida que deja ver lejos.
+        p.FogColor = dry ? new Color(0.82f, 0.80f, 0.74f) : new Color(0.70f, 0.73f, 0.76f);
+        p.FogStart = dry ? 70f : 25f;
+        p.FogEnd = dry ? 520f : 380f;
 
         p.SinFriccion = GetPhysicsMaterial("BiciSinFriccion");
 
@@ -216,6 +256,18 @@ public static class PrototypeSceneBuilder
         for (int i = 0; i < p.Helechos.Length; i++) p.Helechos[i] = VisualAssetFactory.SaveMesh(PM.BuildFern(41 + i), "Helecho" + (i + 1));
         p.Montanas = new Mesh[3];
         for (int i = 0; i < p.Montanas.Length; i++) p.Montanas[i] = VisualAssetFactory.SaveMesh(PM.BuildMountain(51 + i), "Montana" + (i + 1));
+        p.Arbustos = new Mesh[3];
+        for (int i = 0; i < p.Arbustos.Length; i++) p.Arbustos[i] = VisualAssetFactory.SaveMesh(PM.BuildBush(61 + i), "Arbusto" + (i + 1));
+        p.PiedraRampa = VisualAssetFactory.SaveMesh(PM.BuildRockKicker(71), "PiedraRampa");
+        p.PlanoAgua = VisualAssetFactory.SaveMesh(PM.BuildWaterPlane(), "Agua");
+        p.RampaMalla = VisualAssetFactory.SaveMesh(PM.BuildKicker(), "RampaNatural");
+        p.PosteLuz = VisualAssetFactory.SaveMesh(PM.BuildPowerPole(), "PosteLuz");
+        p.Casas = new Mesh[3];
+        for (int i = 0; i < p.Casas.Length; i++) p.Casas[i] = VisualAssetFactory.SaveMesh(PM.BuildHouse(81 + i), "Casa" + (i + 1));
+        p.Agaves = new Mesh[2];
+        for (int i = 0; i < p.Agaves.Length; i++) p.Agaves[i] = VisualAssetFactory.SaveMesh(PM.BuildBlades(91 + i, 1.1f, 14, 0.11f, 0.9f), "Agave" + (i + 1));
+        p.Canas = new Mesh[2];
+        for (int i = 0; i < p.Canas.Length; i++) p.Canas[i] = VisualAssetFactory.SaveMesh(PM.BuildBlades(95 + i, 3.0f, 12, 0.05f, 0.35f), "Cana" + (i + 1));
         MeshBuilder panel = new MeshBuilder(1);
         panel.AddPanel(0, System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, System.Numerics.Vector3.UnitY, 1f, 1f);
         p.Cartel = VisualAssetFactory.SaveMesh(panel, "Cartel");
@@ -327,6 +379,11 @@ public static class PrototypeSceneBuilder
         SetReference(spray, "bike", controller);
         SetReference(spray, "mud", mud);
         SetReference(spray, "dust", dust);
+        if (p.Dry)
+        {
+            SetFloat(spray, "maxDustRate", 30f);
+            SetFloat(spray, "maxMudRate", 35f);
+        }
 
         parts.Root.SetPositionAndRotation(startPoint, startRotation);
         return controller;
@@ -396,35 +453,38 @@ public static class PrototypeSceneBuilder
     // Pista
     // =====================================================================
 
-    private static TrackGenerator BuildTrack(Palette p, out List<float> tramoStarts)
+    private static TrackGenerator BuildTrack(TrackLayout layout, Palette p, out List<float> sectionStarts)
     {
         // Se recorren los tramos como una "tortuga": cada 5 m se avanza, se gira y se baja.
         List<Vector3> points = new List<Vector3>();
         List<float> widths = new List<float>();
-        tramoStarts = new List<float>();
+        List<int> grounds = new List<int>();
+        sectionStarts = new List<float>();
 
         Vector3 position = Vector3.zero;
         float heading = 0f;
         float distance = 0f;
         points.Add(position);
-        widths.Add(Tramos[0].MedioAncho);
+        widths.Add(layout.HalfWidthOf(layout.Sections[0]));
+        grounds.Add(layout.Sections[0].Surface == TrackSection.Ground.Carretera ? 1 : 0);
 
-        foreach (Tramo tramo in Tramos)
+        foreach (TrackSection section in layout.Sections)
         {
-            tramoStarts.Add(distance);
-            int steps = Mathf.Max(1, Mathf.CeilToInt(tramo.Largo / 5f));
-            float stepLength = tramo.Largo / steps;
-            float stepTurn = tramo.Giro / steps;
+            sectionStarts.Add(distance);
+            int steps = Mathf.Max(1, Mathf.CeilToInt(section.Length / 5f));
+            float stepLength = section.Length / steps;
+            float stepTurn = section.Turn / steps;
+            float slope = section.Slope * Mathf.Deg2Rad;
             for (int s = 0; s < steps; s++)
             {
                 heading += stepTurn * 0.5f;
                 Vector3 flatDir = Quaternion.Euler(0f, heading, 0f) * Vector3.forward;
-                float slope = tramo.Pendiente * Mathf.Deg2Rad;
                 position += flatDir * stepLength * Mathf.Cos(slope) + Vector3.down * stepLength * Mathf.Sin(slope);
                 heading += stepTurn * 0.5f;
                 distance += stepLength;
                 points.Add(position);
-                widths.Add(tramo.MedioAncho);
+                widths.Add(layout.HalfWidthOf(section));
+                grounds.Add(section.Surface == TrackSection.Ground.Carretera ? 1 : 0);
             }
         }
 
@@ -433,71 +493,114 @@ public static class PrototypeSceneBuilder
         MeshRenderer renderer = go.AddComponent<MeshRenderer>();
         go.AddComponent<MeshCollider>();
         TrackGenerator track = go.AddComponent<TrackGenerator>();
-        track.SetLayout(points, widths);
+        track.SetLayout(points, widths, grounds);
+        SetFloat(track, "defaultHalfWidth", layout.DefaultHalfWidth);
+        if (p.Dry)
+        {
+            // Sendero natural de ladera: bermas más bajas y menos peralte que en la pista construida del bosque.
+            SetFloat(track, "bermBaseHeight", 0.3f);
+            SetFloat(track, "bermMaxExtraHeight", 1.1f);
+            SetFloat(track, "bermPerCurvature", 0.5f);
+            SetFloat(track, "maxBankAngle", 8f);
+            SetFloat(track, "grassWidth", 16f);
+        }
 
         Mesh generated = track.Generate();
-        Mesh saved = VisualAssetFactory.SaveMeshAsset(generated, VisualAssetFactory.ModelsFolder + "/Pista01.asset");
+        Mesh saved = VisualAssetFactory.SaveMeshAsset(generated, VisualAssetFactory.ModelsFolder + "/" + layout.SceneName + ".asset");
         go.GetComponent<MeshFilter>().sharedMesh = saved;
         MeshCollider meshCollider = go.GetComponent<MeshCollider>();
         meshCollider.sharedMesh = null;
         meshCollider.sharedMesh = saved;
 
-        renderer.sharedMaterials = new[] { p.Tierra, p.Berma, p.Pasto };
+        renderer.sharedMaterials = new[] { p.Tierra, p.Berma, p.Pasto, p.Grava };
         MarkStatic(go);
         return track;
     }
 
-    private static void PopulateTrack(TrackGenerator track, List<float> tramoStarts, Palette p)
+    /// <summary>Coloca todo lo que va sobre la pista según los tramos del diseño.</summary>
+    private static void PopulateTrack(TrackLayout layout, TrackGenerator track, List<float> starts, Palette p)
     {
         System.Random rng = new System.Random(20260101); // Semilla fija: la pista sale igual cada vez.
         float length = track.TotalLength;
         float finishDistance = length - FinishBeforeEnd;
 
-        // --- Checkpoints cada 100 m y meta.
+        // --- Checkpoints y meta.
         Transform checkpoints = new GameObject("Checkpoints").transform;
         int index = 1;
-        for (float d = CheckpointSpacing; d < finishDistance - 10f; d += CheckpointSpacing)
+        for (float d = layout.CheckpointSpacing; d < finishDistance - 10f; d += layout.CheckpointSpacing)
         {
             CreateTrigger(track, d, TrackTrigger.TriggerType.Checkpoint, index, "Checkpoint " + index, checkpoints);
             index++;
         }
         CreateTrigger(track, finishDistance, TrackTrigger.TriggerType.Meta, 0, "Meta", checkpoints);
 
-        // --- Arcos de salida y meta con carteles (solo decorado, sin collider).
+        // --- Arcos de salida y meta con carteles (solo decorado, sin collider) y barreras en los extremos.
         Transform decorado = new GameObject("Decorado").transform;
         CreateArch(track, StartArchDistance, "ArcoSalida", p.CartelSalida, p, decorado);
         CreateArch(track, finishDistance, "ArcoMeta", p.CartelMeta, p, decorado);
-
-        // --- Barreras detrás de la salida y después de la meta.
         CreateBarrier(track, 1.5f, "BarreraSalida", p, decorado);
         CreateBarrier(track, length - 2f, "BarreraFinal", p, decorado);
 
-        // --- Rampas de madera: la del tramo 4 en recta, y la grande antes del final.
         Transform rampas = Group("Rampas", decorado);
-        CreateRamp(track, TramoStart(tramoStarts, "Antes del salto") + 22f, 5f, 3.5f, "PrimerSalto", p, rampas);
-        CreateRamp(track, TramoStart(tramoStarts, "Aproximación salto final") + 20f, 8f, 5f, "SaltoFinal", p, rampas);
-
-        // --- Zona de rocas: en los bordes, angostando el camino (con collider).
+        Transform saltos = Group("SaltosNaturales", decorado);
+        Transform raices = Group("Raices", decorado);
         Transform rocas = Group("Rocas", decorado);
-        float rocksStart = TramoStart(tramoStarts, "Rocas");
-        float rocksEnd = TramoStart(tramoStarts, "Antes de la cerrada");
-        int side = 1;
-        for (float d = rocksStart + 2f; d < rocksEnd; d += Range(rng, 2.5f, 4f))
+        Transform agua = Group("Rio", decorado);
+
+        // --- Lo que pide cada tramo.
+        for (int k = 0; k < layout.Sections.Count; k++)
         {
-            int i = track.GetIndexAtDistance(d);
-            float hw = track.GetHalfWidth(i);
-            side = rng.NextDouble() < 0.7 ? -side : side;
-            CreateRock(track, i, side * (hw + Range(rng, -0.6f, 1.2f)), Range(rng, 0.8f, 1.6f), true, rng, p, rocas);
-            if (rng.NextDouble() < 0.5)
+            TrackSection section = layout.Sections[k];
+            float s0 = Mathf.Min(starts[k], length);
+            float s1 = Mathf.Min(k + 1 < starts.Count ? starts[k + 1] : length, length);
+            if (s1 - s0 < 1f) continue;
+
+            if (section.WoodRamp != TrackSection.Ramp.Ninguna)
             {
-                CreateRock(track, i, side * (hw + Range(rng, 1.5f, 3f)), Range(rng, 0.6f, 1.2f), true, rng, p, rocas);
+                CreateRamp(track, Mathf.Lerp(s0, s1, section.RampPosition), section.WoodRamp, "Rampa " + section.Name, p, rampas);
             }
+            if (section.RockGarden) CreateRockGarden(track, s0, s1, rng, p, rocas);
+            if (section.Buildings) CreateVillage(track, s0, s1, rng, p, Group("Pueblo " + section.Name, decorado));
+
+            float jumpAt = Mathf.Lerp(s0, s1, section.JumpPosition);
+            switch (section.Jump)
+            {
+                case TrackSection.NaturalJump.PiedraIzquierda: CreateRockKicker(track, jumpAt, -1, p, saltos); break;
+                case TrackSection.NaturalJump.PiedraDerecha: CreateRockKicker(track, jumpAt, 1, p, saltos); break;
+                case TrackSection.NaturalJump.Raiz: CreateRoot(track, jumpAt, true, rng, p, saltos); break;
+            }
+
+            if (section.Roots)
+            {
+                for (float d = s0 + 3f; d < s1 - 1f; d += Range(rng, 4f, 7f)) CreateRoot(track, d, false, rng, p, raices);
+            }
+
+            if (section.RocksOnEdges)
+            {
+                // Rocas en los bordes, angostando el camino (con collider). En senderos angostos, más chicas.
+                int side = 1;
+                for (float d = s0 + 2f; d < s1; d += Range(rng, 2.5f, 4f))
+                {
+                    int i = track.GetIndexAtDistance(d);
+                    float hw = track.GetHalfWidth(i);
+                    float scale = Mathf.Clamp(hw / 4.5f, 0.55f, 1f);
+                    side = rng.NextDouble() < 0.7 ? -side : side;
+                    CreateRock(track, i, side * (hw + Range(rng, -0.6f, 1.2f) * scale), Range(rng, 0.8f, 1.6f) * scale, true, rng, p, rocas);
+                    if (rng.NextDouble() < 0.5)
+                    {
+                        CreateRock(track, i, side * (hw + Range(rng, 1.5f, 3f) * scale), Range(rng, 0.6f, 1.2f) * scale, true, rng, p, rocas);
+                    }
+                }
+            }
+
+            if (section.Water) CreateRiver(track, s0, s1, rng, p, agua);
         }
 
-        // --- Rocas sueltas en el pasto del resto de la pista (solo decorado).
+        // --- Rocas sueltas en el pasto (solo decorado), fuera de las zonas de rocas y del río.
         for (float d = 15f; d < length - 10f; d += Range(rng, 8f, 16f))
         {
-            if (d > rocksStart - 5f && d < rocksEnd + 5f) continue;
+            TrackSection section = SectionAt(layout, starts, d);
+            if (section.RocksOnEdges || section.Water || section.Buildings || section.Surface == TrackSection.Ground.Carretera) continue;
             int i = track.GetIndexAtDistance(d);
             int s = rng.NextDouble() < 0.5 ? -1 : 1;
             float lateral = s * (track.GetBermFootOffset(i, s) + Range(rng, 0.5f, 6f));
@@ -507,47 +610,216 @@ public static class PrototypeSceneBuilder
             }
         }
 
-        // --- Árboles: bosque denso en el tramo 5 y pinos y árboles sueltos en el resto.
-        Transform arboles = Group("Arboles", decorado);
-        float forestStart = TramoStart(tramoStarts, "Bosque A");
-        float forestEnd = TramoStart(tramoStarts, "Rocas");
+        PlaceTrees(layout, track, starts, rng, p, Group("Arboles", decorado));
+        PlaceLowPlants(layout, track, starts, rng, p, Group(p.Dry ? "Matorral" : "Helechos", decorado));
+
+        // Decorado estático: permite agrupar los dibujados y ahorrar trabajo a la GPU.
+        foreach (Transform t in decorado.GetComponentsInChildren<Transform>())
+        {
+            if (t.GetComponent<SlowZone>() == null) MarkStatic(t.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Árboles: en el bosque, pinos y árboles de hoja ancha; en el valle seco, pocos árboles bajos;
+    /// en la zona verde, árboles tropicales; junto al cañaveral, alguno suelto.
+    /// </summary>
+    private static void PlaceTrees(TrackLayout layout, TrackGenerator track, List<float> starts, System.Random rng, Palette p, Transform parent)
+    {
+        float length = track.TotalLength;
         for (float d = 0f; d < length; d += 3f)
         {
-            bool forest = d >= forestStart - 5f && d <= forestEnd + 5f;
+            TrackSection section = SectionAt(layout, starts, d);
+            TrackSection.Vegetation plants = section.Plants;
+            if (plants == TrackSection.Vegetation.Ninguna || section.Water) continue;
+            bool dense = plants == TrackSection.Vegetation.Densa || plants == TrackSection.Vegetation.Verde;
+            bool green = plants == TrackSection.Vegetation.Verde || plants == TrackSection.Vegetation.Canaveral;
+            float chance;
+            int rows;
+            if (plants == TrackSection.Vegetation.Verde) { chance = 0.4f; rows = 2; }
+            else if (plants == TrackSection.Vegetation.Canaveral) { chance = 0.06f; rows = 1; }
+            else if (p.Dry)
+            {
+                chance = dense ? 0.35f : (plants == TrackSection.Vegetation.Normal ? 0.12f : 0.05f);
+                rows = 2;
+            }
+            else
+            {
+                chance = dense ? 1f : (plants == TrackSection.Vegetation.Normal ? 0.3f : 0.12f);
+                rows = dense ? 3 : 2;
+            }
+            if (section.Buildings) chance *= 0.4f; // En el pueblo, las casas ocupan el lugar.
+
             int i = track.GetIndexAtDistance(d);
             for (int s = -1; s <= 1; s += 2)
             {
-                int rows = forest ? 3 : 2;
                 for (int row = 0; row < rows; row++)
                 {
-                    if (!forest && rng.NextDouble() > 0.3) continue;
+                    if (rng.NextDouble() > chance) continue;
                     float foot = track.GetBermFootOffset(i, s);
-                    // Se dejan 3.5 m o más tras la berma: las ramas bajas de los pinos no tapan el camino.
-                    float lateral = s * (foot + 3.5f + row * 3.5f + Range(rng, 0f, forest ? 2f : 6f));
-                    TryCreateTree(track, i, lateral, forest, rng, p, arboles);
+                    // Se dejan 3.5 m o más tras la berma: las ramas bajas no tapan el camino.
+                    float lateral = s * (foot + 3.5f + row * 3.5f + Range(rng, 0f, dense ? 2f : 6f));
+                    TryCreateTree(track, i, lateral, dense, green, rng, p, parent);
                 }
             }
         }
+    }
 
-        // --- Helechos al borde del camino: dan sensación de velocidad al pasar cerca.
-        Transform helechos = Group("Helechos", decorado);
+    /// <summary>
+    /// Plantas bajas junto al camino: helechos en el bosque; matorral, matas de pasto seco y agaves en el valle;
+    /// arbustos verdes en la zona tropical y caña de azúcar alta en el cañaveral.
+    /// </summary>
+    private static void PlaceLowPlants(TrackLayout layout, TrackGenerator track, List<float> starts, System.Random rng, Palette p, Transform parent)
+    {
+        float length = track.TotalLength;
         for (float d = 4f; d < length; d += 2.2f)
         {
+            TrackSection section = SectionAt(layout, starts, d);
+            if (section.Water) continue;
+            TrackSection.Vegetation plants = section.Plants;
+            float chance;
+            switch (plants)
+            {
+                case TrackSection.Vegetation.Densa: chance = p.Dry ? 0.85f : 0.75f; break;
+                case TrackSection.Vegetation.Escasa: chance = 0.2f; break;
+                case TrackSection.Vegetation.Ninguna: chance = 0f; break;
+                case TrackSection.Vegetation.Verde: chance = 0.85f; break;
+                case TrackSection.Vegetation.Canaveral: chance = 1f; break;
+                default: chance = p.Dry ? 0.45f : 0.55f; break;
+            }
+            if (section.Buildings) chance *= 0.3f;
+
             int i = track.GetIndexAtDistance(d);
             for (int s = -1; s <= 1; s += 2)
             {
-                if (rng.NextDouble() > 0.55) continue;
-                float lateral = s * (track.GetBermFootOffset(i, s) + Range(rng, 0.2f, 4f));
-                if (Mathf.Abs(lateral) > track.GetOuterOffset(i, s) - 0.5f) continue;
-                Vector3 position = track.GetSurfacePoint(i, lateral);
-                if (!IsClearOfRoad(track, position, 0.2f)) continue;
-                MeshObject("Helecho", helechos, p.Helechos[rng.Next(p.Helechos.Length)], position,
-                    Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f), Vector3.one * Range(rng, 0.8f, 1.4f), false, p.Helecho);
+                // El cañaveral es una pared de caña a ambos lados: dos o tres matas por lado.
+                int clumps = plants == TrackSection.Vegetation.Canaveral ? 3 : 1;
+                for (int c = 0; c < clumps; c++)
+                {
+                    if (rng.NextDouble() > chance) continue;
+                    PlaceLowPlant(track, i, s, plants, rng, p, parent);
+                }
             }
         }
+    }
 
-        // Decorado estático: permite agrupar los dibujados y ahorrar trabajo a la GPU.
-        foreach (Transform t in decorado.GetComponentsInChildren<Transform>()) MarkStatic(t.gameObject);
+    private static void PlaceLowPlant(TrackGenerator track, int i, int side, TrackSection.Vegetation plants, System.Random rng, Palette p, Transform parent)
+    {
+        bool cane = plants == TrackSection.Vegetation.Canaveral;
+        bool green = plants == TrackSection.Vegetation.Verde;
+        bool agave = !cane && !green && p.Dry && rng.NextDouble() < 0.12;
+        bool bush = !cane && !agave && (green || p.Dry) && rng.NextDouble() < 0.6;
+        // El matorral del valle crece pegado al sendero, como un túnel de arbustos.
+        float near = cane ? Range(rng, 0.2f, 4f) : (bush ? Range(rng, -0.4f, 2.5f) : Range(rng, 0.2f, 4f));
+        float lateral = side * (track.GetBermFootOffset(i, side) + near);
+        if (Mathf.Abs(lateral) > track.GetOuterOffset(i, side) - 0.5f) return;
+        Vector3 position = track.GetSurfacePoint(i, lateral);
+        if (!IsClearOfRoad(track, position, bush ? -0.4f : 0.2f)) return;
+        Quaternion yaw = Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f);
+
+        if (cane)
+        {
+            MeshObject("Cana", parent, p.Canas[rng.Next(p.Canas.Length)], position, yaw, Vector3.one * Range(rng, 0.9f, 1.3f), false, p.Cana);
+        }
+        else if (agave)
+        {
+            MeshObject("Agave", parent, p.Agaves[rng.Next(p.Agaves.Length)], position, yaw, Vector3.one * Range(rng, 0.8f, 1.4f), false, p.Agave);
+        }
+        else if (bush)
+        {
+            MeshObject("Arbusto", parent, p.Arbustos[rng.Next(p.Arbustos.Length)], position, yaw,
+                Vector3.one * Range(rng, 0.8f, 1.5f), true, p.Tronco, green ? p.HojasVerdes : p.Hojas);
+        }
+        else
+        {
+            MeshObject(p.Dry ? "MataSeca" : "Helecho", parent, p.Helechos[rng.Next(p.Helechos.Length)], position, yaw,
+                Vector3.one * Range(rng, 0.8f, 1.4f), false, p.Helecho);
+        }
+    }
+
+    /// <summary>Tramo del diseño que contiene la distancia d (desde la salida).</summary>
+    private static TrackSection SectionAt(TrackLayout layout, List<float> starts, float d)
+    {
+        for (int k = starts.Count - 1; k >= 0; k--)
+        {
+            if (d >= starts[k]) return layout.Sections[k];
+        }
+        return layout.Sections[0];
+    }
+
+    /// <summary>Salto natural: una piedra en un borde del camino que hace de rampa (opcional, se puede esquivar).</summary>
+    private static void CreateRockKicker(TrackGenerator track, float distance, int side, Palette p, Transform parent)
+    {
+        int i = track.GetIndexAtDistance(distance);
+        float hw = track.GetHalfWidth(i);
+        Vector3 position = track.GetSurfacePoint(i, side * Mathf.Max(0.4f, hw - 0.75f)) - Vector3.up * 0.03f;
+        Quaternion rotation = Quaternion.LookRotation(track.GetForward(i), Vector3.up);
+        GameObject rock = MeshObject("PiedraRampa", parent, p.PiedraRampa, position, rotation, new Vector3(1.4f, 0.75f, 2.4f), true, p.Roca);
+        MeshCollider meshCollider = rock.AddComponent<MeshCollider>();
+        meshCollider.sharedMesh = p.PiedraRampa;
+        meshCollider.convex = true;
+    }
+
+    /// <summary>Raíz cruzando el camino, medio enterrada. Las grandes sirven para saltar una parte trabada.</summary>
+    private static void CreateRoot(TrackGenerator track, float distance, bool big, System.Random rng, Palette p, Transform parent)
+    {
+        int i = track.GetIndexAtDistance(distance);
+        float hw = track.GetHalfWidth(i);
+        float radius = big ? 0.2f : Range(rng, 0.06f, 0.11f);
+        float angle = big ? Range(rng, -10f, 10f) : Range(rng, -30f, 30f);
+        float length = hw * 2f + 1.5f;
+        Quaternion rotation = Quaternion.LookRotation(Flat(track.GetForward(i))) * Quaternion.Euler(0f, angle, 90f);
+
+        // El cilindro de Unity trae CapsuleCollider: la bici lo pisa como un bulto redondo.
+        GameObject root = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        root.name = big ? "RaizGrande" : "Raiz";
+        root.transform.SetParent(parent, false);
+        root.transform.SetPositionAndRotation(track.GetSurfacePoint(i, 0f) + Vector3.up * radius * 0.35f, rotation);
+        root.transform.localScale = new Vector3(radius * 2f, length * 0.5f, radius * 2f);
+        root.GetComponent<Renderer>().sharedMaterial = p.Tronco;
+    }
+
+    /// <summary>Cruce de río: agua que frena la bici, orillas de barro y piedras alrededor.</summary>
+    private static void CreateRiver(TrackGenerator track, float s0, float s1, System.Random rng, Palette p, Transform parent)
+    {
+        int mid = track.GetIndexAtDistance((s0 + s1) * 0.5f);
+        Vector3 forward = Flat(track.GetForward(mid));
+        Quaternion rotation = Quaternion.LookRotation(forward);
+        float outer = Mathf.Max(track.GetOuterOffset(mid, -1), track.GetOuterOffset(mid, 1));
+        float width = outer * 2f + 12f;
+        float length = s1 - s0 + 6f;
+        Vector3 center = track.GetSurfacePoint(mid, 0f);
+
+        MeshObject("Agua", parent, p.PlanoAgua, center + Vector3.up * 0.16f, rotation, new Vector3(width, 1f, length), false, p.Agua);
+
+        // Orillas de barro a la entrada y salida del agua.
+        foreach (float d in new[] { s0 - 1.5f, s1 + 1.5f })
+        {
+            int i = track.GetIndexAtDistance(d);
+            MeshObject("Orilla", parent, p.PlanoAgua, track.GetSurfacePoint(i, 0f) + Vector3.up * 0.03f,
+                Quaternion.LookRotation(Flat(track.GetForward(i))), new Vector3(width, 1f, 2.2f), false, p.Berma);
+        }
+
+        // El agua frena: zona invisible que avisa a la bici al entrar y salir.
+        GameObject zone = new GameObject("ZonaAgua");
+        zone.transform.SetParent(parent, false);
+        zone.transform.SetPositionAndRotation(center, rotation);
+        BoxCollider box = zone.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = new Vector3(width, 4f, length - 4f);
+        box.center = new Vector3(0f, 1.5f, 0f);
+        zone.AddComponent<SlowZone>().Configure(3.5f);
+
+        // Piedras del río: algunas chicas en el camino (se pisan) y otras grandes a los lados.
+        for (int n = 0; n < 18; n++)
+        {
+            float d = Range(rng, s0 - 1f, s1 + 1f);
+            int i = track.GetIndexAtDistance(d);
+            float hw = track.GetHalfWidth(i);
+            bool onTrail = n < 4;
+            float lateral = onTrail ? Range(rng, -hw + 0.4f, hw - 0.4f) : (rng.NextDouble() < 0.5 ? -1f : 1f) * Range(rng, hw + 0.5f, outer);
+            CreateRock(track, i, lateral, onTrail ? Range(rng, 0.25f, 0.4f) : Range(rng, 0.5f, 1.2f), onTrail, rng, p, parent);
+        }
     }
 
     /// <summary>Montañas lejanas que asoman entre la niebla y un valle muy abajo, para que no se vea el vacío.</summary>
@@ -589,16 +861,6 @@ public static class PrototypeSceneBuilder
         valleyRenderer.shadowCastingMode = ShadowCastingMode.Off;
 
         foreach (Transform t in paisaje.GetComponentsInChildren<Transform>()) MarkStatic(t.gameObject);
-    }
-
-    private static float TramoStart(List<float> starts, string nombre)
-    {
-        for (int i = 0; i < Tramos.Length; i++)
-        {
-            if (Tramos[i].Nombre == nombre) return starts[i];
-        }
-        Debug.LogError("PrototypeSceneBuilder: no existe el tramo " + nombre);
-        return 0f;
     }
 
     private static void CreateTrigger(TrackGenerator track, float distance, TrackTrigger.TriggerType type, int index, string name, Transform parent)
@@ -659,21 +921,74 @@ public static class PrototypeSceneBuilder
         WorldPart(PrimitiveType.Cube, "Franja", barrier.transform, basePoint + Vector3.up * 1.55f, new Vector3(width, 0.35f, 0.82f), rotation, p.Rojo);
     }
 
-    /// <summary>Rampa: bloque inclinado de madera sobre el camino, con su borde delantero a ras del suelo.</summary>
-    private static void CreateRamp(TrackGenerator track, float distance, float length, float width, string name, Palette p, Transform parent)
+    /// <summary>
+    /// Rampa de salto con curva de transición: tablones de madera (o concreto) apoyados en un montículo
+    /// de tierra con taludes a los lados y atrás, como las que se construyen en las pistas reales.
+    /// </summary>
+    private static void CreateRamp(TrackGenerator track, float distance, TrackSection.Ramp type, string name, Palette p, Transform parent)
     {
         int i = track.GetIndexAtDistance(distance);
-        const float thickness = 3f; // Grueso para que la parte trasera llegue bajo el suelo.
-        Quaternion trackRotation = Quaternion.LookRotation(track.GetForward(i), Vector3.up);
-        Quaternion rampRotation = trackRotation * Quaternion.Euler(-RampAngle, 0f, 0f);
-        Vector3 frontEdge = track.GetSurfacePoint(i, 0f) - Vector3.up * 0.05f;
+        float hw = track.GetHalfWidth(i);
+        Vector3 size;
+        switch (type)
+        {
+            case TrackSection.Ramp.Grande: size = new Vector3(4f, 1.8f, 6.5f); break;
+            case TrackSection.Ramp.Concreto: size = new Vector3(3.2f, 1.2f, 5f); break;
+            default: size = new Vector3(3f, 1.1f, 4.5f); break;
+        }
+        // En senderos angostos la rampa no puede ser más ancha que el camino.
+        size.x = Mathf.Min(size.x, hw * 2f - 0.2f);
+        Quaternion rotation = Quaternion.LookRotation(track.GetForward(i), Vector3.up);
+        Vector3 start = track.GetSurfacePoint(i, 0f) - Vector3.up * 0.04f;
+        Material surface = type == TrackSection.Ramp.Concreto ? p.Concreto : p.Rampa;
 
-        GameObject ramp = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        ramp.name = name;
-        ramp.transform.SetParent(parent, false);
-        ramp.transform.SetPositionAndRotation(frontEdge + rampRotation * new Vector3(0f, -thickness * 0.5f, length * 0.5f), rampRotation);
-        ramp.transform.localScale = new Vector3(width, thickness, length);
-        ramp.GetComponent<Renderer>().sharedMaterial = p.Rampa;
+        GameObject ramp = MeshObject(name, parent, p.RampaMalla, start, rotation, size, true, surface, p.Berma);
+        MeshCollider meshCollider = ramp.AddComponent<MeshCollider>();
+        meshCollider.sharedMesh = p.RampaMalla;
+        meshCollider.convex = true;
+    }
+
+    /// <summary>Pedregal: piedras sueltas dentro del camino, de distintos tamaños, que hay que esquivar o pasar por encima.</summary>
+    private static void CreateRockGarden(TrackGenerator track, float s0, float s1, System.Random rng, Palette p, Transform parent)
+    {
+        for (float d = s0 + 1.5f; d < s1 - 0.5f; d += Range(rng, 1.4f, 2.6f))
+        {
+            int i = track.GetIndexAtDistance(d);
+            float hw = track.GetHalfWidth(i);
+            int count = rng.NextDouble() < 0.4 ? 2 : 1;
+            for (int n = 0; n < count; n++)
+            {
+                float lateral = Range(rng, -hw + 0.2f, hw - 0.2f);
+                CreateRock(track, i, lateral, Range(rng, 0.28f, 0.5f), true, rng, p, parent);
+            }
+        }
+    }
+
+    /// <summary>Pueblo: casas y galpones a los lados del camino, con la fachada hacia él, y postes de luz.</summary>
+    private static void CreateVillage(TrackGenerator track, float s0, float s1, System.Random rng, Palette p, Transform parent)
+    {
+        for (float d = s0 + Range(rng, 2f, 8f); d < s1; d += Range(rng, 10f, 16f))
+        {
+            int i = track.GetIndexAtDistance(d);
+            int side = rng.NextDouble() < 0.5 ? -1 : 1;
+            float outer = track.GetOuterOffset(i, side);
+            float lateral = side * Mathf.Min(track.GetBermFootOffset(i, side) + Range(rng, 3.5f, 6f), outer);
+            Vector3 position = track.GetSurfacePoint(i, lateral);
+            if (!IsClearOfRoad(track, position, 3.2f)) continue;
+            // La fachada (con la puerta) mira hacia el camino.
+            Vector3 toRoad = Flat(track.GetPosition(i) - position);
+            Quaternion rotation = Quaternion.LookRotation(-toRoad) * Quaternion.Euler(0f, Range(rng, -8f, 8f), 0f);
+            bool shed = rng.NextDouble() < 0.3;
+            MeshObject(shed ? "Galpon" : "Casa", parent, p.Casas[rng.Next(p.Casas.Length)], position - Vector3.up * 0.1f, rotation,
+                Vector3.one, true, p.Pared, shed ? p.TechoZinc : p.Techo, p.Ventana);
+        }
+        for (float d = s0 + 5f; d < s1; d += 28f)
+        {
+            int i = track.GetIndexAtDistance(d);
+            float lateral = track.GetBermFootOffset(i, 1) + 1.2f;
+            MeshObject("PosteLuz", parent, p.PosteLuz, track.GetSurfacePoint(i, lateral),
+                Quaternion.LookRotation(Flat(track.GetForward(i))), Vector3.one, true, p.Poste);
+        }
     }
 
     private static void CreateRock(TrackGenerator track, int i, float lateral, float size, bool withCollider, System.Random rng, Palette p, Transform parent)
@@ -693,7 +1008,7 @@ public static class PrototypeSceneBuilder
         }
     }
 
-    private static void TryCreateTree(TrackGenerator track, int i, float lateral, bool forest, System.Random rng, Palette p, Transform parent)
+    private static void TryCreateTree(TrackGenerator track, int i, float lateral, bool forest, bool green, System.Random rng, Palette p, Transform parent)
     {
         int side = lateral >= 0f ? 1 : -1;
         if (Mathf.Abs(lateral) > track.GetOuterOffset(i, side) - 1f) return; // Fuera del pasto.
@@ -702,11 +1017,13 @@ public static class PrototypeSceneBuilder
         // Lejos del borde de cualquier tramo (contando las bermas), para que las ramas no tapen el camino.
         if (!IsClearOfRoad(track, position, 3f)) return;
 
-        bool pine = rng.NextDouble() < (forest ? 0.8 : 0.6);
+        // En el valle no hay pinos: árboles de hoja ancha más bajos (secos, o verdes en la zona tropical).
+        bool pine = !p.Dry && !green && rng.NextDouble() < (forest ? 0.8 : 0.6);
         Mesh mesh = pine ? p.Pinos[rng.Next(p.Pinos.Length)] : p.Frondosos[rng.Next(p.Frondosos.Length)];
-        float scale = Range(rng, 0.85f, 1.25f);
+        float scale = p.Dry ? Range(rng, 0.6f, 1.0f) : Range(rng, 0.85f, 1.25f);
+        Material leaves = pine ? p.Agujas : (green ? p.HojasVerdes : p.Hojas);
         MeshObject(pine ? "Pino" : "ArbolFrondoso", parent, mesh, position - Vector3.up * 0.1f,
-            Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f), Vector3.one * scale, true, p.Tronco, pine ? p.Agujas : p.Hojas);
+            Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f), Vector3.one * scale, true, p.Tronco, leaves);
     }
 
     /// <summary>True si el punto está a "margin" metros o más del pie de las bermas de todos los tramos.</summary>
@@ -733,14 +1050,14 @@ public static class PrototypeSceneBuilder
     // Cámara y UI
     // =====================================================================
 
-    private static void BuildCamera(BikeController bike)
+    private static void BuildCamera(BikeController bike, Palette p)
     {
         GameObject go = new GameObject("Main Camera");
         go.tag = "MainCamera";
         Camera cam = go.AddComponent<Camera>();
         cam.fieldOfView = 60f;
         cam.nearClipPlane = 0.1f;
-        cam.farClipPlane = 450f;
+        cam.farClipPlane = p.FogEnd + 80f;
         cam.clearFlags = CameraClearFlags.Skybox;
         go.AddComponent<AudioListener>();
 
@@ -838,41 +1155,45 @@ public static class PrototypeSceneBuilder
     // Luz, cielo, post-procesado y rendimiento
     // =====================================================================
 
-    /// <summary>Día nublado de montaña: sol suave, cielo panorámico y niebla que esconde la distancia.</summary>
+    /// <summary>
+    /// Bosque: día nublado con sol suave y niebla densa. Valle seco: sol fuerte y cálido con calima.
+    /// En ambos el cielo es panorámico y la niebla esconde la distancia.
+    /// </summary>
     private static void BuildLighting(Palette p)
     {
         GameObject sun = new GameObject("Sol");
-        sun.transform.rotation = Quaternion.Euler(42f, -30f, 0f);
+        sun.transform.rotation = p.Dry ? Quaternion.Euler(52f, -40f, 0f) : Quaternion.Euler(42f, -30f, 0f);
         Light light = sun.AddComponent<Light>();
         light.type = LightType.Directional;
-        light.color = new Color(0.95f, 0.97f, 1f);
-        light.intensity = 1.05f;
+        light.color = p.Dry ? new Color(1f, 0.95f, 0.86f) : new Color(0.95f, 0.97f, 1f);
+        light.intensity = p.Dry ? 1.4f : 1.05f;
         light.shadows = LightShadows.Soft;
-        light.shadowStrength = 0.6f;
+        light.shadowStrength = p.Dry ? 0.8f : 0.6f;
 
         RenderSettings.sun = light;
         RenderSettings.skybox = p.Cielo;
         // Luz ambiente de tres colores: no necesita hornear iluminación.
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = new Color(0.58f, 0.62f, 0.68f);
-        RenderSettings.ambientEquatorColor = new Color(0.47f, 0.50f, 0.50f);
-        RenderSettings.ambientGroundColor = new Color(0.24f, 0.22f, 0.19f);
+        RenderSettings.ambientSkyColor = p.Dry ? new Color(0.66f, 0.70f, 0.76f) : new Color(0.58f, 0.62f, 0.68f);
+        RenderSettings.ambientEquatorColor = p.Dry ? new Color(0.62f, 0.58f, 0.50f) : new Color(0.47f, 0.50f, 0.50f);
+        RenderSettings.ambientGroundColor = p.Dry ? new Color(0.38f, 0.32f, 0.24f) : new Color(0.24f, 0.22f, 0.19f);
 
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Linear;
-        RenderSettings.fogColor = FogColor;
-        RenderSettings.fogStartDistance = 25f;
-        RenderSettings.fogEndDistance = 380f;
+        RenderSettings.fogColor = p.FogColor;
+        RenderSettings.fogStartDistance = p.FogStart;
+        RenderSettings.fogEndDistance = p.FogEnd;
     }
 
     /// <summary>Post-procesado ligero: tonos neutros, algo de contraste, bloom suave y viñeta.</summary>
-    private static void BuildPostProcessing()
+    private static void BuildPostProcessing(TrackLayout layout, Palette p)
     {
-        VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(VolumeProfilePath);
+        string profilePath = "Assets/Settings/" + layout.SceneName + "_PostProceso.asset";
+        VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(profilePath);
         if (profile == null)
         {
             profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            AssetDatabase.CreateAsset(profile, VolumeProfilePath);
+            AssetDatabase.CreateAsset(profile, profilePath);
         }
         // Se vacía el perfil para no acumular efectos al reconstruir la escena.
         foreach (VolumeComponent old in profile.components.ToArray())
@@ -886,10 +1207,11 @@ public static class PrototypeSceneBuilder
         tonemapping.mode.Override(TonemappingMode.Neutral);
 
         ColorAdjustments color = AddVolumeComponent<ColorAdjustments>(profile);
-        color.postExposure.Override(0.1f);
-        color.contrast.Override(15f);
-        color.saturation.Override(-12f);
-        color.colorFilter.Override(new Color(0.97f, 0.99f, 1f));
+        // Bosque: frío y apagado. Valle: cálido y algo más saturado, como el sol de la tarde.
+        color.postExposure.Override(p.Dry ? 0.05f : 0.1f);
+        color.contrast.Override(p.Dry ? 10f : 15f);
+        color.saturation.Override(p.Dry ? -4f : -12f);
+        color.colorFilter.Override(p.Dry ? new Color(1f, 0.98f, 0.94f) : new Color(0.97f, 0.99f, 1f));
 
         Bloom bloom = AddVolumeComponent<Bloom>(profile);
         bloom.intensity.Override(0.25f);
@@ -1011,6 +1333,19 @@ public static class PrototypeSceneBuilder
             return;
         }
         property.objectReferenceValue = value;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void SetString(Object target, string field, string value)
+    {
+        SerializedObject so = new SerializedObject(target);
+        SerializedProperty property = so.FindProperty(field);
+        if (property == null)
+        {
+            Debug.LogError("PrototypeSceneBuilder: " + target.GetType().Name + " no tiene el campo '" + field + "'.");
+            return;
+        }
+        property.stringValue = value;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

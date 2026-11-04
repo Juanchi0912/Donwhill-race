@@ -8,6 +8,10 @@ public static class GameSession
 {
     public const string MenuScene = "Menu";
     public const string RaceScene = "Pista01";
+    public const string LaPazScene = "Pista02";
+
+    /// <summary>Escena de la pista elegida en el menú.</summary>
+    public static string SelectedTrackScene { get; set; } = RaceScene;
 
     /// <summary>Modo elegido en el menú.</summary>
     public static GameMode SelectedMode { get; set; } = GameMode.Carrera;
@@ -39,6 +43,7 @@ public static class GameSession
     private static void ResetStatics()
     {
         SelectedMode = GameMode.Carrera;
+        SelectedTrackScene = RaceScene;
         SkipIntro = false;
     }
 }

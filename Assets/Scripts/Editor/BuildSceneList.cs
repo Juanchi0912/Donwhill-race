@@ -9,8 +9,9 @@ public static class BuildSceneList
 {
     public const string MenuScenePath = "Assets/Scenes/Menu.unity";
     public const string RaceScenePath = "Assets/Scenes/Pista01.unity";
+    public const string LaPazScenePath = "Assets/Scenes/Pista02.unity";
 
-    private static readonly string[] PreferredOrder = { MenuScenePath, RaceScenePath };
+    private static readonly string[] PreferredOrder = { MenuScenePath, RaceScenePath, LaPazScenePath };
 
     /// <summary>Agrega la escena (si falta) y reordena la lista.</summary>
     public static void Register(string path)

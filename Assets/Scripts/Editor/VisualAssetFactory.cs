@@ -121,6 +121,28 @@ public static class VisualAssetFactory
         return m;
     }
 
+    /// <summary>Material URP/Lit transparente (agua): deja ver el fondo y refleja la luz.</summary>
+    public static Material Transparent(string name, Color tint, float smoothness)
+    {
+        Material m = GetOrCreateMaterial(name, "Universal Render Pipeline/Lit");
+        ResetSurface(m);
+        m.SetTexture("_BaseMap", null);
+        m.SetColor("_BaseColor", tint);
+        m.color = tint;
+        m.SetFloat("_Smoothness", smoothness);
+        m.SetFloat("_Metallic", 0f);
+        m.SetFloat("_Surface", 1f);
+        m.SetFloat("_Blend", 0f);
+        m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+        m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        m.SetFloat("_ZWrite", 0f);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.renderQueue = (int)RenderQueue.Transparent;
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
     /// <summary>Material de partículas transparente (polvo y barro).</summary>
     public static Material Particles(string name, Texture2D texture, Color tint)
     {
