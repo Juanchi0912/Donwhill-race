@@ -1,6 +1,8 @@
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.DualShock;
 #endif
 
 /// <summary>
@@ -13,7 +15,26 @@ public static class GameInput
     // Zona muerta de los gatillos: algunos mandos no vuelven exactamente a 0.
     private const float TriggerDeadzone = 0.1f;
 
-    /// <summary>Pedalear, de 0 a 1. W / ↑ / Gatillo derecho.</summary>
+#if ENABLE_INPUT_SYSTEM
+    // Último dispositivo usado (para mostrar teclas o botones del mando en pantalla).
+    private static bool usingGamepad;
+    private static bool deviceKnown;
+    private static int deviceCheckFrame = -1;
+
+    // Sin recarga de dominio los estáticos sobreviven entre Play y Play: se reinician aquí.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        usingGamepad = false;
+        deviceKnown = false;
+        deviceCheckFrame = -1;
+    }
+#endif
+
+    /// <summary>
+    /// Pedalear, de 0 a 1. W / ↑ / botón sur (A de Xbox, Cruz de PlayStation) / Gatillo derecho.
+    /// El botón sur pedalea al máximo; el gatillo permite dosificar.
+    /// </summary>
     public static float Throttle
     {
         get
@@ -24,7 +45,11 @@ public static class GameInput
             if (kb != null && (kb.wKey.isPressed || kb.upArrowKey.isPressed)) value = 1f;
 
             Gamepad pad = Gamepad.current;
-            if (pad != null) value = Mathf.Max(value, ApplyTriggerDeadzone(pad.rightTrigger.ReadValue()));
+            if (pad != null)
+            {
+                value = Mathf.Max(value, ApplyTriggerDeadzone(pad.rightTrigger.ReadValue()));
+                if (pad.buttonSouth.isPressed) value = 1f;
+            }
 #else
             if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) value = 1f;
 #endif
@@ -32,7 +57,7 @@ public static class GameInput
         }
     }
 
-    /// <summary>Frenar, de 0 a 1. S / ↓ / Gatillo izquierdo.</summary>
+    /// <summary>Frenar, de 0 a 1. S / ↓ / botón oeste (X de Xbox, Cuadrado de PlayStation) / Gatillo izquierdo.</summary>
     public static float Brake
     {
         get
@@ -43,7 +68,11 @@ public static class GameInput
             if (kb != null && (kb.sKey.isPressed || kb.downArrowKey.isPressed)) value = 1f;
 
             Gamepad pad = Gamepad.current;
-            if (pad != null) value = Mathf.Max(value, ApplyTriggerDeadzone(pad.leftTrigger.ReadValue()));
+            if (pad != null)
+            {
+                value = Mathf.Max(value, ApplyTriggerDeadzone(pad.leftTrigger.ReadValue()));
+                if (pad.buttonWest.isPressed) value = 1f;
+            }
 #else
             if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) value = 1f;
 #endif
@@ -81,7 +110,7 @@ public static class GameInput
         }
     }
 
-    /// <summary>Agacharse (mantener). Shift izquierdo / botón oeste (X de Xbox, Cuadrado de PlayStation).</summary>
+    /// <summary>Agacharse (mantener). Shift izquierdo / LB (L1 de PlayStation).</summary>
     public static bool Crouch
     {
         get
@@ -90,14 +119,14 @@ public static class GameInput
             Keyboard kb = Keyboard.current;
             Gamepad pad = Gamepad.current;
             return (kb != null && kb.leftShiftKey.isPressed)
-                || (pad != null && pad.buttonWest.isPressed);
+                || (pad != null && pad.leftShoulder.isPressed);
 #else
             return Input.GetKey(KeyCode.LeftShift);
 #endif
         }
     }
 
-    /// <summary>Saltar (este frame). Espacio / botón sur (A de Xbox, Cruz de PlayStation).</summary>
+    /// <summary>Saltar (este frame). Espacio / RB (R1 de PlayStation): se salta sin soltar el pedaleo.</summary>
     public static bool JumpPressed
     {
         get
@@ -106,7 +135,7 @@ public static class GameInput
             Keyboard kb = Keyboard.current;
             Gamepad pad = Gamepad.current;
             return (kb != null && kb.spaceKey.wasPressedThisFrame)
-                || (pad != null && pad.buttonSouth.wasPressedThisFrame);
+                || (pad != null && pad.rightShoulder.wasPressedThisFrame);
 #else
             return Input.GetKeyDown(KeyCode.Space);
 #endif
@@ -129,7 +158,7 @@ public static class GameInput
         }
     }
 
-    /// <summary>Empezar / confirmar (este frame). Enter / Start.</summary>
+    /// <summary>Empezar / confirmar (este frame). Enter / Start / botón sur (A de Xbox, Cruz de PlayStation).</summary>
     public static bool ConfirmPressed
     {
         get
@@ -138,15 +167,34 @@ public static class GameInput
             Keyboard kb = Keyboard.current;
             Gamepad pad = Gamepad.current;
             return (kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame))
-                || (pad != null && pad.startButton.wasPressedThisFrame);
+                || (pad != null && (pad.startButton.wasPressedThisFrame || pad.buttonSouth.wasPressedThisFrame));
 #else
             return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
 #endif
         }
     }
 
-    /// <summary>Volver / reiniciar (este frame). Esc / Select.</summary>
+    /// <summary>Volver en menús y en la meta (este frame). Esc / botón este (B de Xbox, Círculo de PlayStation) / Select.</summary>
     public static bool BackPressed
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            Gamepad pad = Gamepad.current;
+            return (kb != null && kb.escapeKey.wasPressedThisFrame)
+                || (pad != null && (pad.buttonEast.wasPressedThisFrame || pad.selectButton.wasPressedThisFrame));
+#else
+            return Input.GetKeyDown(KeyCode.Escape);
+#endif
+        }
+    }
+
+    /// <summary>
+    /// Reiniciar la bajada en plena carrera (este frame). Esc / Select.
+    /// No usa B: es fácil apretarlo sin querer y se perdería la bajada.
+    /// </summary>
+    public static bool RestartPressed
     {
         get
         {
@@ -159,6 +207,65 @@ public static class GameInput
             return Input.GetKeyDown(KeyCode.Escape);
 #endif
         }
+    }
+
+    /// <summary>True si lo último que se tocó fue un mando (se usa para mostrar sus botones en pantalla).</summary>
+    public static bool UsingGamepad
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (deviceCheckFrame == Time.frameCount) return usingGamepad;
+            deviceCheckFrame = Time.frameCount;
+            Gamepad pad = Gamepad.current;
+            if (!deviceKnown)
+            {
+                // Al empezar: si hay un mando conectado se asume que se juega con él.
+                usingGamepad = pad != null;
+                deviceKnown = true;
+            }
+            if (pad == null) usingGamepad = false;
+            else if (AnyGamepadPress(pad)) usingGamepad = true;
+            else if (AnyKeyboardOrMouse()) usingGamepad = false;
+            return usingGamepad;
+#else
+            return false;
+#endif
+        }
+    }
+
+    /// <summary>True si el mando conectado es de PlayStation (los botones se nombran Cruz, Círculo...).</summary>
+    public static bool IsPlayStationPad
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Gamepad.current is DualShockGamepad;
+#else
+            return false;
+#endif
+        }
+    }
+
+    /// <summary>
+    /// Cambia las marcas {A} {B} {X} {Y} {START} {SELECT} {RT} {LT} {RB} {LB} por el nombre del botón
+    /// según el mando conectado (Xbox y genéricos, o PlayStation).
+    /// </summary>
+    public static string PadText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        bool ps = IsPlayStationPad;
+        return text
+            .Replace("{A}", ps ? "Cruz" : "A")
+            .Replace("{B}", ps ? "Círculo" : "B")
+            .Replace("{X}", ps ? "Cuadrado" : "X")
+            .Replace("{Y}", ps ? "Triángulo" : "Y")
+            .Replace("{START}", ps ? "Options" : "Start")
+            .Replace("{SELECT}", ps ? "Share" : "Select")
+            .Replace("{RT}", ps ? "R2" : "RT")
+            .Replace("{LT}", ps ? "L2" : "LT")
+            .Replace("{RB}", ps ? "R1" : "RB")
+            .Replace("{LB}", ps ? "L1" : "LB");
     }
 
     /// <summary>Clic izquierdo del mouse (este frame). Sirve para saltar la presentación.</summary>
@@ -182,4 +289,27 @@ public static class GameInput
     {
         return value < TriggerDeadzone ? 0f : value;
     }
+
+#if ENABLE_INPUT_SYSTEM
+    private static bool AnyGamepadPress(Gamepad pad)
+    {
+        // Los botones, gatillos y direcciones del stick son ButtonControl: basta con ver si alguno se apretó.
+        foreach (InputControl control in pad.allControls)
+        {
+            if (control is ButtonControl button && button.wasPressedThisFrame) return true;
+        }
+        return false;
+    }
+
+    private static bool AnyKeyboardOrMouse()
+    {
+        Keyboard kb = Keyboard.current;
+        if (kb != null && kb.anyKey.wasPressedThisFrame) return true;
+        Mouse mouse = Mouse.current;
+        if (mouse == null) return false;
+        // Un movimiento claro del mouse (no un temblor) también cuenta.
+        return mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame
+            || mouse.delta.ReadValue().sqrMagnitude > 64f;
+    }
+#endif
 }

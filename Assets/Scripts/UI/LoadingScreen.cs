@@ -29,9 +29,9 @@ public class LoadingScreen : MonoBehaviour
     [Tooltip("Consejos que aparecen mientras carga.")]
     [SerializeField] private string[] tips =
     {
-        "Agáchate con Shift en las rectas para llegar a 100 km/h.",
+        "Agáchate (Shift o LB / L1 en el mando) en las rectas para llegar a 100 km/h.",
         "Las bermas de las curvas te ayudan a girar sin frenar tanto.",
-        "Si te caes, presiona R para volver al último checkpoint.",
+        "Si te caes, presiona R (Y / Triángulo en el mando) para volver al último checkpoint.",
         "En la curva cerrada conviene frenar antes de entrar.",
         "Pedalear solo ayuda hasta unos 40 km/h: en bajada manda la pendiente.",
     };

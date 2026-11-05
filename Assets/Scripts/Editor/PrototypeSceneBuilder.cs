@@ -329,6 +329,9 @@ public static class PrototypeSceneBuilder
         RiderStamina stamina = physics.AddComponent<RiderStamina>();
         BikeController controller = physics.AddComponent<BikeController>();
         SetReference(controller, "stamina", stamina);
+        GamepadRumble rumble = physics.AddComponent<GamepadRumble>();
+        SetReference(rumble, "bike", controller);
+        SetReference(rumble, "stamina", stamina);
 
         // --- Modelo visual (se arma en el origen y luego se lleva a la salida).
         BikeModelBuilder.Parts parts = BikeModelBuilder.Build();
@@ -1072,6 +1075,12 @@ public static class PrototypeSceneBuilder
     }
 
     /// <summary>True si el punto está a "margin" metros o más del pie de las bermas de todos los tramos.</summary>
+    private static void Hint(Text label, string keyboard, string gamepad)
+    {
+        label.text = keyboard;
+        label.gameObject.AddComponent<InputHint>().Configure(label, keyboard, gamepad);
+    }
+
     private static bool IsClearOfRoad(TrackGenerator track, Vector3 position, float margin)
     {
         foreach (TrackGenerator extra in ExtraTracks)
@@ -1512,7 +1521,7 @@ public static class PrototypeSceneBuilder
         Text best = UiBuilder.Label("Mejor", hud, font, "Mejor  --:--.--", 30, new Vector2(0.5f, 1f), new Vector2(0f, -135f), gold, FontStyle.Normal, TextAnchor.MiddleCenter, true);
         Text speed = UiBuilder.Label("Velocidad", hud, font, "0", 110, new Vector2(1f, 0f), new Vector2(-300f, 115f), white, FontStyle.Bold, TextAnchor.MiddleRight, true, new Vector2(320f, 130f));
         UiBuilder.Label("Unidad", hud, font, "km/h", 36, new Vector2(1f, 0f), new Vector2(-75f, 85f), new Color(1f, 1f, 1f, 0.85f), FontStyle.Bold, TextAnchor.MiddleLeft, true, new Vector2(120f, 60f));
-        UiBuilder.Label("Ayuda", hud, font, "R: reaparecer   ·   Esc: reiniciar", 26, new Vector2(0f, 0f), new Vector2(260f, 50f), new Color(1f, 1f, 1f, 0.7f), FontStyle.Normal, TextAnchor.MiddleLeft, true, new Vector2(480f, 50f));
+        Text help = UiBuilder.Label("Ayuda", hud, font, "R: reaparecer   ·   Esc: reiniciar", 26, new Vector2(0f, 0f), new Vector2(260f, 50f), new Color(1f, 1f, 1f, 0.7f), FontStyle.Normal, TextAnchor.MiddleLeft, true, new Vector2(480f, 50f));
         Text countdown = UiBuilder.Label("Cuenta", hud, font, string.Empty, 230, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), accent, FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 300f));
 
         // --- Barra de energía, abajo a la izquierda (sobre la ayuda de teclas).
@@ -1529,17 +1538,9 @@ public static class PrototypeSceneBuilder
 
         // --- Controles: se muestran durante la cuenta regresiva (antes estaban en la pantalla de inicio).
         RectTransform controls = UiBuilder.Panel("Controles", hud, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1240f, 220f), new Color(0f, 0f, 0f, 0.55f));
-        UiBuilder.Label("ControlesIzquierda", controls, font,
-            "<b>Pedalear</b>   W / ↑   ·   RT\n" +
-            "<b>Frenar</b>   S / ↓   ·   LT\n" +
-            "<b>Girar</b>   A D / ← →   ·   Stick izquierdo\n" +
-            "<b>Agacharse</b>   Shift izq.   ·   X / Cuadrado",
+        Text controlsLeft = UiBuilder.Label("ControlesIzquierda", controls, font, string.Empty,
             28, new Vector2(0.5f, 0.5f), new Vector2(-300f, 0f), white, FontStyle.Normal, TextAnchor.MiddleLeft, false, new Vector2(560f, 200f));
-        UiBuilder.Label("ControlesDerecha", controls, font,
-            "<b>Saltar</b>   Espacio   ·   A / Cruz\n" +
-            "<b>Reaparecer</b>   R   ·   Y / Triángulo\n" +
-            "<b>Correr otra vez</b>   Enter   ·   Start\n" +
-            "<b>Reiniciar / menú</b>   Esc   ·   Select",
+        Text controlsRight = UiBuilder.Label("ControlesDerecha", controls, font, string.Empty,
             28, new Vector2(0.5f, 0.5f), new Vector2(320f, 0f), white, FontStyle.Normal, TextAnchor.MiddleLeft, false, new Vector2(560f, 200f));
 
         // --- Pantalla de meta (dentro del HUD).
@@ -1548,7 +1549,18 @@ public static class PrototypeSceneBuilder
         Text finishTime = UiBuilder.Label("MetaTiempo", finish, font, "Tiempo: 0:00.00", 64, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), white, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         Text finishBest = UiBuilder.Label("MetaMejor", finish, font, "Mejor: 0:00.00", 40, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Color(1f, 1f, 1f, 0.9f), FontStyle.Normal, TextAnchor.MiddleCenter, true);
         Text record = UiBuilder.Label("NuevoRecord", finish, font, "¡Nuevo récord!", 54, new Vector2(0.5f, 0.5f), new Vector2(0f, -115f), gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
-        UiBuilder.Label("MetaAyuda", finish, font, "ENTER para correr otra vez   ·   ESC para volver al menú", 30, new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), white, FontStyle.Normal, TextAnchor.MiddleCenter, true, new Vector2(950f, 60f));
+        Text finishHelp = UiBuilder.Label("MetaAyuda", finish, font, "ENTER para correr otra vez   ·   ESC para volver al menú", 30, new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), white, FontStyle.Normal, TextAnchor.MiddleCenter, true, new Vector2(950f, 60f));
+
+        // Ayudas que muestran las teclas o los botones del mando según con qué se esté jugando.
+        Hint(help, "R: reaparecer   ·   Esc: reiniciar", "{Y}: reaparecer   ·   {SELECT}: reiniciar");
+        Hint(controlsLeft,
+            "<b>Pedalear</b>   W / ↑\n<b>Frenar</b>   S / ↓\n<b>Girar</b>   A D / ← →\n<b>Agacharse</b>   Shift izq.",
+            "<b>Pedalear</b>   {A}  (o {RT})\n<b>Frenar</b>   {X}  (o {LT})\n<b>Girar</b>   Stick izquierdo\n<b>Agacharse</b>   {LB}");
+        Hint(controlsRight,
+            "<b>Saltar</b>   Espacio\n<b>Reaparecer</b>   R\n<b>Correr otra vez</b>   Enter\n<b>Reiniciar / menú</b>   Esc",
+            "<b>Saltar</b>   {RB}\n<b>Reaparecer</b>   {Y}\n<b>Correr otra vez</b>   {A}\n<b>Reiniciar</b>   {SELECT}   ·   <b>Menú</b>   {B}");
+        Hint(finishHelp, "ENTER para correr otra vez   ·   ESC para volver al menú",
+            "{A} para correr otra vez   ·   {B} para volver al menú");
 
         RaceHUD raceHud = canvasGo.AddComponent<RaceHUD>();
         SetReference(raceHud, "bike", bike);

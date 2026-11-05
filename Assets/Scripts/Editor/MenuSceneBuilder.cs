@@ -98,7 +98,7 @@ public static class MenuSceneBuilder
             UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         Button play = UiBuilder.Button("Jugar", main, font, "JUGAR", 46, new Vector2(0f, 20f), new Vector2(560f, 96f));
         Button settings = UiBuilder.Button("Configuraciones", main, font, "CONFIGURACIONES", 46, new Vector2(0f, -100f), new Vector2(560f, 96f));
-        Footer(main, font, "↑ ↓  elegir     ·     Enter  aceptar");
+        Footer(main, font, "↑ ↓  elegir     ·     Enter  aceptar", "Stick  elegir     ·     {A}  aceptar");
 
         // --- Configuraciones (vacía por ahora).
         RectTransform config = UiBuilder.Stretch(UiBuilder.UIObject("PantallaConfiguraciones", root));
@@ -108,7 +108,7 @@ public static class MenuSceneBuilder
         UiBuilder.Label("Proximamente", config, font, "Próximamente", 46, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f),
             new Color(1f, 1f, 1f, 0.7f), FontStyle.Italic, TextAnchor.MiddleCenter, false);
         Button configBack = UiBuilder.Button("Volver", config, font, "VOLVER", 40, new Vector2(0f, -230f), new Vector2(360f, 84f));
-        Footer(config, font, "Enter  aceptar     ·     Esc  volver");
+        Footer(config, font, "Enter  aceptar     ·     Esc  volver", "{A}  aceptar     ·     {B}  volver");
 
         // --- Modos de juego: cuatro tarjetas en fila; solo Carrera está disponible.
         RectTransform modes = UiBuilder.Stretch(UiBuilder.UIObject("PantallaModos", root));
@@ -123,7 +123,7 @@ public static class MenuSceneBuilder
             UiBuilder.Gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         message.gameObject.SetActive(false);
         Button modesBack = UiBuilder.Button("Volver", modes, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));
-        Footer(modes, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver");
+        Footer(modes, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver", "Stick  elegir     ·     {A}  aceptar     ·     {B}  volver");
 
         // --- Pistas de la carrera.
         RectTransform tracks = UiBuilder.Stretch(UiBuilder.UIObject("PantallaPistas", root));
@@ -134,7 +134,7 @@ public static class MenuSceneBuilder
         // La segunda pista se presenta por su nombre ("La Paz"), nunca como "Pista 2".
         Button track2 = TrackCard(tracks, font, "LA PAZ", "Yunguilla, Azuay  ·  1,3 km", new Vector2(300f, 20f));
         Button tracksBack = UiBuilder.Button("Volver", tracks, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));
-        Footer(tracks, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver");
+        Footer(tracks, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver", "Stick  elegir     ·     {A}  aceptar     ·     {B}  volver");
 
         // --- Pantalla de carga.
         RectTransform loading = UiBuilder.Stretch(UiBuilder.UIObject("PantallaCarga", root));
@@ -212,10 +212,12 @@ public static class MenuSceneBuilder
         return card;
     }
 
-    private static void Footer(Transform parent, Font font, string text)
+    /// <summary>Ayuda al pie de la pantalla: muestra teclas o botones del mando según con qué se navegue.</summary>
+    private static void Footer(Transform parent, Font font, string keyboard, string gamepad)
     {
-        UiBuilder.Label("Ayuda", parent, font, text, 26, new Vector2(0.5f, 0f), new Vector2(0f, 60f),
+        Text label = UiBuilder.Label("Ayuda", parent, font, keyboard, 26, new Vector2(0.5f, 0f), new Vector2(0f, 60f),
             new Color(1f, 1f, 1f, 0.6f), FontStyle.Normal, TextAnchor.MiddleCenter, false);
+        label.gameObject.AddComponent<InputHint>().Configure(label, keyboard, gamepad);
     }
 
     private static void SetReference(Object target, string field, Object value)

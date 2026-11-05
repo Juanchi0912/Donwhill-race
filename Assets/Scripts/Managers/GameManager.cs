@@ -124,7 +124,7 @@ public class GameManager : MonoBehaviour
                 break;
 
             case RaceState.CuentaRegresiva:
-                if (GameInput.BackPressed)
+                if (GameInput.RestartPressed)
                 {
                     StartRace();
                     break;
@@ -135,11 +135,13 @@ public class GameManager : MonoBehaviour
 
             case RaceState.Carrera:
                 RaceTime += Time.deltaTime;
-                // Esc reinicia la bajada desde la salida, sin pasar por el menú.
-                if (GameInput.BackPressed) StartRace();
+                // Esc / Select reinicia la bajada desde la salida, sin pasar por el menú.
+                if (GameInput.RestartPressed) StartRace();
                 break;
 
             case RaceState.Meta:
+                // Un momento de espera: el mismo botón A con que se saltó al cruzar la meta no reinicia sin querer.
+                if (Time.time - finishedAt < FinishInputDelay) break;
                 if (GameInput.ConfirmPressed) StartRace();
                 else if (GameInput.BackPressed) ReturnToMenu();
                 break;
@@ -169,6 +171,7 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
         }
 
+        finishedAt = Time.time;
         SetState(RaceState.Meta);
         RaceFinished?.Invoke(RaceTime, IsNewRecord);
     }
@@ -222,6 +225,9 @@ public class GameManager : MonoBehaviour
         RaceTime = 0f;
         SetState(RaceState.Carrera);
     }
+
+    private const float FinishInputDelay = 1f;
+    private float finishedAt;
 
     private void SetState(RaceState newState)
     {
