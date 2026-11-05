@@ -17,10 +17,48 @@ con sus partes más reconocibles. **≈ 1.27 km, 147 m de desnivel, ≈ 1:30 de 
 | Cresta rápida | Cresta rápida 1-3, Curva al vacío | La parte más rápida, **salto grande de madera**, piedra-rampa |
 | Caída y zigzag | Caída de la cresta (18°), Zigzag 1-3, Pequeña subida, Horquillas Z1-Z3 | Horquillas muy cerradas (radio ≈ 8 m) en ladera abierta |
 | Pueblo | Llegada al pueblo, Calle del pueblo | Casas, galpones, postes y el **salto de concreto** en la calle |
-| Final | Sendero verde 1-3, Carretera entre cañaverales 1-3, Bajada al río, Río, Salida del río, Meta | Vegetación tropical, caña de azúcar alta, cruce del río (frena) y meta |
+| Final | Sendero verde 1-3, Carretera entre cañaverales 1-3, Bajada al río, Río, Salida del río, Meta | Vegetación tropical, caña de azúcar alta, cruce del río y meta |
 
 Los saltos naturales (piedras al borde y raíces) son **opcionales**: se pueden esquivar.
 Las rampas de madera y concreto están en el centro del camino, con una bajada después para aterrizar.
+
+## Paredes de montaña
+
+La pista corre **dentro de la montaña**: un terreno (`Montañas`) sube en paredes empinadas a ambos lados,
+con roca en lo más parado, pasto en lo suave y matorral y árboles en las laderas. Ya no se ve vacío a los lados.
+Si la pista pasa cerca de sí misma, entre los dos tramos queda una ladera continua.
+Las montañas lejanas ahora se ubican **fuera de toda la pista** (antes una quedaba en medio y se podía atravesar).
+
+En el diseño se ajusta en **Montañas a los lados**:
+- **Mountain Walls**: activar o quitar las paredes.
+- **Wall Height**: altura de las paredes (70 m por defecto).
+- **Wall Steepness**: qué tan parado suben (0.8 por defecto; 1.5 ya es casi un cañón).
+
+## El río
+
+- **40 m de cruce** y un cauce de ≈ 100 m de ancho tallado en el terreno, con orillas que bajan al agua.
+- Unas **50 piedras**: chicas dentro del camino (se pisan o se esquivan) y grandes por todo el cauce.
+- El agua es transparente, con ondas que **corren**, y las ruedas sueltan **salpicaduras** en vez de polvo.
+- **Frena fuerte** al entrar rápido. El frenado baja a paso lento, así que se cruza aunque no quede energía.
+  Se ajusta en la bici: **Zone Full Speed** en el `BikeController`.
+
+## Atajos ocultos
+
+Tres senderos angostos (≈ 2 m) salen de la pista entre matorrales, así que **la entrada casi no se ve**.
+Cortan una horquilla: son más empinados y tienen raíces, así que solo ahorran tiempo si se toman bien.
+
+| Atajo | Dónde sale | Dónde vuelve | Cómo encontrarlo |
+|---|---|---|---|
+| Atajo de la cresta | Final de *Cresta 3* | Mitad de *Bajada empinada* | Antes de la horquilla de tierra, mira al lado de adentro de la curva |
+| Atajo del matorral | *Matorral 6* | *Pedregal 2* | En el matorral cerrado, justo antes de la horquilla |
+| Atajo del zigzag | Final de *Zigzag 2* | *Zigzag 3* | Saltándose la horquilla Z2 por la ladera |
+
+Para editarlos, en el diseño abre **Atajos ocultos** y cambia:
+- **From Section / To Section**: nombre exacto del tramo donde sale y donde vuelve (tiene que estar más abajo).
+- **From Position / To Position**: dónde dentro del tramo (0 = inicio, 1 = final).
+- **Half Width**: medio ancho del sendero. **Bend**: cuánto se curva. **Roots**: raíces en el sendero.
+
+Si un nombre no existe o el atajo terminaría más arriba de donde sale, no se crea y aparece un aviso en la Consola.
 
 ## Construirla
 
@@ -47,6 +85,9 @@ Las rampas de madera y concreto están en el centro del camino, con una bajada d
 
 Puedes agregar tramos con el **+** de la lista, moverlos arrastrando y borrarlos con el **−**.
 Si algo queda mal, **DownhillRace → Restaurar diseño original de La Paz — Yunguilla** vuelve al diseño inicial.
+
+Cuando el diseño original cambia (como ahora con el río y los atajos), al construir aparece un aviso:
+**Actualizar** trae el diseño nuevo (pierdes tus cambios), **Mantener el mío** deja tu versión como está.
 
 ### Consejos
 

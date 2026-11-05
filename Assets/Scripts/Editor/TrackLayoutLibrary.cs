@@ -15,26 +15,46 @@ public static class TrackLayoutLibrary
     public const string Folder = "Assets/Settings/Pistas";
     private const float Narrow = 1.8f;  // Sendero angosto (líneas delgadas del mapa).
 
+    // Sube este número cuando cambie el diseño original: los assets viejos ofrecen actualizarse.
+    private const int Pista01Version = 1;
+    private const int LaPazVersion = 2; // 2: río ancho, atajos ocultos y paredes de montaña.
+
     public static TrackLayout GetPista01()
     {
-        return GetOrCreate(Folder + "/Pista01_Diseno.asset", layout =>
+        return GetOrCreate(Folder + "/Pista01_Diseno.asset", Pista01Version, layout =>
             layout.Configure("Pista 1 · Bosque nublado", "Pista01", TrackLayout.Theme.BosqueNublado, 4.5f, Pista01Sections()));
     }
 
     public static TrackLayout GetLaPazYunguilla()
     {
-        return GetOrCreate(Folder + "/LaPazYunguilla_Diseno.asset", layout =>
-            layout.Configure("La Paz — Yunguilla", "Pista02", TrackLayout.Theme.ValleSeco, 2.5f, LaPazSections()));
+        return GetOrCreate(Folder + "/LaPazYunguilla_Diseno.asset", LaPazVersion, layout =>
+            layout.Configure("La Paz — Yunguilla", "Pista02", TrackLayout.Theme.ValleSeco, 2.5f, LaPazSections(), LaPazShortcuts()));
     }
 
-    private static TrackLayout GetOrCreate(string path, Action<TrackLayout> fill)
+    private static TrackLayout GetOrCreate(string path, int version, Action<TrackLayout> fill)
     {
         TrackLayout layout = AssetDatabase.LoadAssetAtPath<TrackLayout>(path);
-        if (layout != null) return layout;
+        if (layout != null)
+        {
+            if (layout.LibraryVersion < version)
+            {
+                // El asset viene de un diseño más viejo: se pregunta antes de pisar los cambios del usuario.
+                bool update = EditorUtility.DisplayDialog("Diseño de pista actualizado",
+                    "Hay una versión nueva del diseño «" + layout.DisplayName + "» (río más ancho, atajos ocultos, paredes de montaña). " +
+                    "¿Actualizar " + path + "? Se perderán los cambios que le hiciste en el Inspector.",
+                    "Actualizar", "Mantener el mío");
+                if (update) fill(layout);
+                layout.SetLibraryVersion(version);
+                EditorUtility.SetDirty(layout);
+                AssetDatabase.SaveAssets();
+            }
+            return layout;
+        }
 
         VisualAssetFactory.EnsureFolder(Folder);
         layout = ScriptableObject.CreateInstance<TrackLayout>();
         fill(layout);
+        layout.SetLibraryVersion(version);
         AssetDatabase.CreateAsset(layout, path);
         AssetDatabase.SaveAssets();
         Debug.Log("DownhillRace: diseño de pista creado en " + path + ". Puedes editarlo en el Inspector.");
@@ -127,10 +147,24 @@ public static class TrackLayoutLibrary
         s.Add(new TrackSection("Carretera entre cañaverales 2", 35f, -25f, 3f, 3f).AsRoad().WithVegetation(Plants.Canaveral));
         s.Add(new TrackSection("Carretera entre cañaverales 3", 30f, 10f, 2f, 3f).AsRoad().WithVegetation(Plants.Canaveral));
         s.Add(new TrackSection("Bajada al río", 20f, 0f, 4f, 3f).WithVegetation(Plants.Escasa));
-        s.Add(new TrackSection("Río", 22f, 0f, 1f, 3.4f).WithWater().WithVegetation(Plants.Escasa));
+        s.Add(new TrackSection("Río", 40f, 0f, 1f, 3.4f).WithWater().WithVegetation(Plants.Escasa));
         s.Add(new TrackSection("Salida del río", 12f, 0f, -3f, 3f).WithVegetation(Plants.Escasa));
         s.Add(new TrackSection("Meta", 55f, 0f, 1.5f, 3f).WithVegetation(Plants.Canaveral));
         return s;
+    }
+
+    /// <summary>
+    /// Atajos ocultos: senderos angostos entre la vegetación que se saltan una horquilla.
+    /// Son más empinados y con raíces, así que ahorran tiempo solo si se toman bien.
+    /// </summary>
+    private static List<TrackShortcut> LaPazShortcuts()
+    {
+        return new List<TrackShortcut>
+        {
+            new TrackShortcut("Atajo del matorral", "Matorral 6", 0.6f, "Pedregal 2", 0.4f),
+            new TrackShortcut("Atajo de la cresta", "Cresta 3", 0.6f, "Bajada empinada", 0.6f),
+            new TrackShortcut("Atajo del zigzag", "Zigzag 2", 0.75f, "Zigzag 3", 0.3f),
+        };
     }
 
     /// <summary>Tramo "trabado": varias curvitas seguidas (las del mapa con muchas vueltas).</summary>

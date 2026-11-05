@@ -97,6 +97,9 @@ public class BikeController : MonoBehaviour
     [Tooltip("Por debajo de esta velocidad (m/s) el pasto deja de frenar, para no quedarse atascado.")]
     [SerializeField] private float grassMinSpeed = 5f;
 
+    [Tooltip("Velocidad (m/s) desde la que el agua frena con toda su fuerza. Más lento frena menos: así se cruza aunque no quede energía.")]
+    [SerializeField] private float zoneFullSpeed = 8f;
+
     [Header("Salto y aire")]
     [Tooltip("Velocidad vertical del salto en m/s.")]
     [SerializeField] private float jumpSpeed = 4.5f;
@@ -323,7 +326,8 @@ public class BikeController : MonoBehaviour
             // --- Rodadura y pasto.
             float decel = rollingResistance;
             if (onGrass && forwardSpeed > grassMinSpeed) decel += grassDeceleration;
-            decel += Mathf.Max(0f, zoneDeceleration);
+            // El agua frena como un arrastre: fuerte al entrar rápido, suave a paso lento (nunca deja a la bici atascada).
+            decel += Mathf.Max(0f, zoneDeceleration) * Mathf.Clamp01(forwardSpeed / Mathf.Max(0.1f, zoneFullSpeed));
             forwardSpeed = Vector3.Dot(velocity, forward);
             if (forwardSpeed > 0f) velocity -= forward * Mathf.Min(forwardSpeed, decel * dt);
 
@@ -383,6 +387,9 @@ public class BikeController : MonoBehaviour
         checkpointPosition = position;
         checkpointHeading = headingDegrees;
     }
+
+    /// <summary>True mientras la bici está dentro de una zona que frena (agua).</summary>
+    public bool InSlowZone => zoneDeceleration > 0.01f;
 
     /// <summary>Lo llaman las SlowZone al entrar (positivo) y salir (negativo).</summary>
     public void AddZoneDeceleration(float amount)

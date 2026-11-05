@@ -462,6 +462,34 @@ public static class ProceduralTextures
         normal = NormalFromHeight(height, size, size, 2f);
     }
 
+    /// <summary>
+    /// Agua de río: color verde azulado con estelas de espuma (alfa = transparencia) y un mapa normal
+    /// de ondas alargadas en el sentido de la corriente. Al desplazarse se ve el agua correr.
+    /// </summary>
+    public static void RiverWater(int size, out Image albedo, out Image normal)
+    {
+        albedo = new Image(size, size);
+        float[] height = new float[size * size];
+        Rgb deep = new Rgb(0.20f, 0.36f, 0.40f);
+        Rgb shallow = new Rgb(0.42f, 0.56f, 0.54f);
+        Rgb foam = new Rgb(0.92f, 0.95f, 0.96f);
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+            float waves = Fbm2(u, v, 3, 9, 4, 380);
+            float ripples = Fbm2(u, v, 12, 32, 2, 381);
+            float streak = SmoothStep(0.62f, 0.75f, Fbm2(u, v, 2, 10, 3, 382));
+            Rgb c = Rgb.Lerp(deep, shallow, SmoothStep(0.3f, 0.7f, waves));
+            c = Rgb.Lerp(c, foam, streak * 0.7f);
+            float alpha = Lerp(0.62f, 0.9f, streak);
+            albedo.Set(x, y, c.R, c.G, c.B, alpha);
+            height[y * size + x] = waves * 0.6f + ripples * 0.4f;
+        }
+        normal = NormalFromHeight(height, size, size, 4f);
+    }
+
     // =====================================================================
     // Bici GY RAVEN y corredor
     // =====================================================================

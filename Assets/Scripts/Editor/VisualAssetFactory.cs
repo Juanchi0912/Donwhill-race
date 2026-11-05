@@ -122,11 +122,14 @@ public static class VisualAssetFactory
     }
 
     /// <summary>Material URP/Lit transparente (agua): deja ver el fondo y refleja la luz.</summary>
-    public static Material Transparent(string name, Color tint, float smoothness)
+    public static Material Transparent(string name, Color tint, float smoothness, Texture2D albedo = null, Texture2D normal = null)
     {
         Material m = GetOrCreateMaterial(name, "Universal Render Pipeline/Lit");
         ResetSurface(m);
-        m.SetTexture("_BaseMap", null);
+        m.SetTexture("_BaseMap", albedo);
+        SetKeyword(m, "_NORMALMAP", normal != null);
+        m.SetTexture("_BumpMap", normal);
+        m.SetFloat("_BumpScale", 1f);
         m.SetColor("_BaseColor", tint);
         m.color = tint;
         m.SetFloat("_Smoothness", smoothness);
@@ -141,6 +144,32 @@ public static class VisualAssetFactory
         m.renderQueue = (int)RenderQueue.Transparent;
         EditorUtility.SetDirty(m);
         return m;
+    }
+
+    /// <summary>Material para terrenos de URP (lo usan las paredes de montaña).</summary>
+    public static Material TerrainMaterial(string name)
+    {
+        return GetOrCreateMaterial(name, "Universal Render Pipeline/Terrain/Lit");
+    }
+
+    /// <summary>Capa de textura para terrenos (pasto, roca); se guarda como asset y se actualiza si ya existe.</summary>
+    public static TerrainLayer TerrainLayerAsset(string name, Texture2D albedo, Texture2D normal, float tileSize)
+    {
+        EnsureFolder(MaterialsFolder);
+        string path = MaterialsFolder + "/" + name + ".terrainlayer";
+        TerrainLayer layer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(path);
+        if (layer == null)
+        {
+            layer = new TerrainLayer();
+            AssetDatabase.CreateAsset(layer, path);
+        }
+        layer.diffuseTexture = albedo;
+        layer.normalMapTexture = normal;
+        layer.tileSize = new Vector2(tileSize, tileSize);
+        layer.smoothness = 0f;
+        layer.metallic = 0f;
+        EditorUtility.SetDirty(layer);
+        return layer;
     }
 
     /// <summary>Material de partículas transparente (polvo y barro).</summary>

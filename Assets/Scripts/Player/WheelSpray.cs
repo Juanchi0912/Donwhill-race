@@ -16,6 +16,12 @@ public class WheelSpray : MonoBehaviour
     [Tooltip("Partículas de polvo (grandes y suaves).")]
     [SerializeField] private ParticleSystem dust = null;
 
+    [Tooltip("Salpicaduras de agua al cruzar el río (opcional).")]
+    [SerializeField] private ParticleSystem splash = null;
+
+    [Tooltip("Gotas por segundo en el agua a velocidad máxima.")]
+    [SerializeField] private float maxSplashRate = 120f;
+
     [Header("Cantidad")]
     [Tooltip("Velocidad (m/s) a partir de la cual la rueda empieza a levantar tierra.")]
     [SerializeField] private float minSpeed = 3f;
@@ -44,9 +50,12 @@ public class WheelSpray : MonoBehaviour
         if (bike == null) return;
 
         bool grounded = bike.IsGrounded;
+        bool inWater = bike.InSlowZone;
         float amount = grounded ? Mathf.InverseLerp(minSpeed, fullSpeed, bike.Speed) : 0f;
-        SetRate(mud, amount * maxMudRate);
-        SetRate(dust, amount * maxDustRate);
+        // En el agua no hay polvo: salen gotas, incluso a poca velocidad.
+        SetRate(mud, inWater ? 0f : amount * maxMudRate);
+        SetRate(dust, inWater ? 0f : amount * maxDustRate);
+        SetRate(splash, inWater ? Mathf.Max(0.25f, amount) * maxSplashRate : 0f);
 
         if (!grounded)
         {

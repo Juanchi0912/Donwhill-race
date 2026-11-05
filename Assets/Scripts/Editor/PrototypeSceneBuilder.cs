@@ -32,11 +32,12 @@ public static class PrototypeSceneBuilder
         public bool Dry => Theme == TrackLayout.Theme.ValleSeco;
         public Material Tierra, Berma, Pasto, Roca, Rampa, Tronco, Agujas, Hojas, Helecho, Montana, Valle;
         public Material Blanco, Rojo, Negro, CartelSalida, CartelMeta, Barro, Polvo, Cielo, Agua;
-        public Material Grava, Concreto, Pared, Techo, TechoZinc, Ventana, Poste, Agave, HojasVerdes, Cana;
+        public Material Grava, Concreto, Pared, Techo, TechoZinc, Ventana, Poste, Agave, HojasVerdes, Cana, Gotas;
         public PhysicsMaterial SinFriccion;
         public Mesh[] Pinos, Frondosos, Rocas, Helechos, Montanas, Arbustos;
         public Mesh Cartel, PiedraRampa, PlanoAgua, RampaMalla, PosteLuz;
         public Mesh[] Casas, Agaves, Canas;
+        public Texture2D TexPasto, TexPastoNormal, TexRoca, TexRocaNormal;
         public Color FogColor;
         public float FogStart, FogEnd;
     }
@@ -88,9 +89,12 @@ public static class PrototypeSceneBuilder
             Progress("Armando la bici GY RAVEN y el corredor", 0.45f);
             BikeController bike = BuildBikeAndRider(palette, track);
 
-            Progress("Colocando checkpoints, saltos, rocas y vegetación", 0.6f);
+            Progress("Colocando atajos, checkpoints, saltos, rocas y vegetación", 0.55f);
+            BuildShortcuts(layout, track, sectionStarts, new System.Random(1717), palette);
             PopulateTrack(layout, track, sectionStarts, palette);
-            BuildSurroundings(track, palette);
+            Progress("Levantando las montañas a los lados", 0.75f);
+            if (layout.MountainWalls) BuildTerrain(layout, track, palette);
+            BuildSurroundings(layout, track, palette);
             ConfigureFallHeight(bike, track);
 
             Progress("Creando cámara, luces, post-procesado y UI", 0.85f);
@@ -150,17 +154,19 @@ public static class PrototypeSceneBuilder
             VisualAssetFactory.SaveTexture(berm, bermaName, Kind.ColorSmoothness, 512, 4),
             VisualAssetFactory.SaveTexture(bermN, bermaName + "Normal", Kind.Normal, 512, 4), 1f, true);
         Texture2D grassTex = VisualAssetFactory.SaveTexture(grass, pasto, Kind.ColorSmoothness, 512, 4);
-        p.Pasto = VisualAssetFactory.Lit(pasto, Color.white, grassTex,
-            VisualAssetFactory.SaveTexture(grassN, pasto + "Normal", Kind.Normal, 512, 4), 1f, true, 0f, 0.8f);
+        Texture2D grassNormal = VisualAssetFactory.SaveTexture(grassN, pasto + "Normal", Kind.Normal, 512, 4);
+        p.Pasto = VisualAssetFactory.Lit(pasto, Color.white, grassTex, grassNormal, 1f, true, 0f, 0.8f);
+        p.TexPasto = grassTex;
+        p.TexPastoNormal = grassNormal;
 
         // Rocas, madera de las rampas y árboles.
         PT.Image rock, rockN;
         if (dry) PT.DryRock(256, out rock, out rockN);
         else PT.Rock(256, out rock, out rockN);
         string roca = dry ? "RocaSeca" : "Roca";
-        p.Roca = VisualAssetFactory.Lit(roca, Color.white,
-            VisualAssetFactory.SaveTexture(rock, roca, Kind.ColorSmoothness, 256),
-            VisualAssetFactory.SaveTexture(rockN, roca + "Normal", Kind.Normal, 256), 1f, true);
+        p.TexRoca = VisualAssetFactory.SaveTexture(rock, roca, Kind.ColorSmoothness, 256);
+        p.TexRocaNormal = VisualAssetFactory.SaveTexture(rockN, roca + "Normal", Kind.Normal, 256);
+        p.Roca = VisualAssetFactory.Lit(roca, Color.white, p.TexRoca, p.TexRocaNormal, 1f, true);
         PT.WoodPlanks(256, out PT.Image wood, out PT.Image woodN);
         p.Rampa = VisualAssetFactory.Lit("Rampa", Color.white,
             VisualAssetFactory.SaveTexture(wood, "Madera", Kind.ColorSmoothness, 256),
@@ -202,7 +208,10 @@ public static class PrototypeSceneBuilder
             VisualAssetFactory.SaveTexture(PT.Banner(1024, 128, "SALIDA", new PT.Rgb(0.12f, 0.35f, 0.82f), false), "CartelSalida", Kind.Color, 1024), null, 0.3f);
         p.CartelMeta = VisualAssetFactory.Lit("CartelMeta", Color.white,
             VisualAssetFactory.SaveTexture(PT.Banner(1024, 128, "META", new PT.Rgb(0.08f, 0.08f, 0.08f), true), "CartelMeta", Kind.Color, 1024), null, 0.3f);
-        p.Agua = VisualAssetFactory.Transparent("Agua", new Color(0.30f, 0.47f, 0.52f, 0.62f), 0.92f);
+        PT.RiverWater(256, out PT.Image water, out PT.Image waterN);
+        p.Agua = VisualAssetFactory.Transparent("Agua", new Color(1f, 1f, 1f, 0.95f), 0.92f,
+            VisualAssetFactory.SaveTexture(water, "Agua", Kind.Decal, 256),
+            VisualAssetFactory.SaveTexture(waterN, "AguaNormal", Kind.Normal, 256));
 
         // Pueblo y carretera: lastre, concreto, casas y postes.
         PT.Gravel(512, out PT.Image gravel, out PT.Image gravelN);
@@ -234,6 +243,7 @@ public static class PrototypeSceneBuilder
         p.Polvo = dry
             ? VisualAssetFactory.Particles("ParticulaPolvoSeco", blob, new Color(0.80f, 0.70f, 0.55f, 0.55f))
             : VisualAssetFactory.Particles("ParticulaPolvo", blob, new Color(0.55f, 0.47f, 0.38f, 0.45f));
+        p.Gotas = VisualAssetFactory.Particles("ParticulaGotas", blob, new Color(0.85f, 0.92f, 1f, 0.8f));
         p.Cielo = dry
             ? VisualAssetFactory.PanoramicSky("CieloValle", VisualAssetFactory.SaveTexture(PT.HazySky(1024, 512), "CieloValle", Kind.Sky, 1024), 1f)
             : VisualAssetFactory.PanoramicSky("CieloNublado", VisualAssetFactory.SaveTexture(PT.OvercastSky(1024, 512), "CieloNublado", Kind.Sky, 1024), 1f);
@@ -375,10 +385,12 @@ public static class PrototypeSceneBuilder
         Vector3 rearContact = new Vector3(0f, 0.06f, PM.RearAxle.Z - 0.05f);
         ParticleSystem mud = CreateSpray("Barro", parts.Root, rearContact, p.Barro, false);
         ParticleSystem dust = CreateSpray("Polvo", parts.Root, rearContact + new Vector3(0f, 0.05f, -0.1f), p.Polvo, true);
+        ParticleSystem splash = CreateSplash(parts.Root, rearContact + new Vector3(0f, 0.1f, 0f), p.Gotas);
         WheelSpray spray = visual.AddComponent<WheelSpray>();
         SetReference(spray, "bike", controller);
         SetReference(spray, "mud", mud);
         SetReference(spray, "dust", dust);
+        SetReference(spray, "splash", splash);
         if (p.Dry)
         {
             SetFloat(spray, "maxDustRate", 30f);
@@ -387,6 +399,23 @@ public static class PrototypeSceneBuilder
 
         parts.Root.SetPositionAndRotation(startPoint, startRotation);
         return controller;
+    }
+
+    /// <summary>Gotas de agua que salen de las ruedas al cruzar el río.</summary>
+    private static ParticleSystem CreateSplash(Transform parent, Vector3 localPosition, Material material)
+    {
+        ParticleSystem ps = CreateSpray("Salpicadura", parent, localPosition, material, false);
+        ParticleSystem.MainModule main = ps.main;
+        main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 4.5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.18f);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
+        main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.85f, 0.92f, 1f, 0.9f), new Color(0.6f, 0.75f, 0.85f, 0.7f));
+        main.gravityModifier = 1.4f;
+        main.maxParticles = 200;
+        ParticleSystem.ShapeModule shape = ps.shape;
+        shape.angle = 45f; // Las gotas se abren hacia los lados.
+        ps.transform.localRotation = Quaternion.LookRotation(new Vector3(0f, 1f, -0.6f));
+        return ps;
     }
 
     /// <summary>Sistema de partículas para la rueda: barro (pequeño, pesado) o polvo (grande, suave).</summary>
@@ -786,18 +815,24 @@ public static class PrototypeSceneBuilder
         Vector3 forward = Flat(track.GetForward(mid));
         Quaternion rotation = Quaternion.LookRotation(forward);
         float outer = Mathf.Max(track.GetOuterOffset(mid, -1), track.GetOuterOffset(mid, 1));
-        float width = outer * 2f + 12f;
-        float length = s1 - s0 + 6f;
+        float width = outer * 2f + 60f;
+        float length = s1 - s0 + 8f;
         Vector3 center = track.GetSurfacePoint(mid, 0f);
 
-        MeshObject("Agua", parent, p.PlanoAgua, center + Vector3.up * 0.16f, rotation, new Vector3(width, 1f, length), false, p.Agua);
+        GameObject water = MeshObject("Agua", parent, p.PlanoAgua, center + Vector3.up * 0.25f, rotation, new Vector3(width, 1f, length), false, p.Agua);
+        water.AddComponent<WaterFlow>(); // Las ondas se desplazan: el agua corre.
+        Rivers.Add(new RiverBed
+        {
+            Center = center, Forward = forward, Right = Vector3.Cross(Vector3.up, forward),
+            HalfLength = length * 0.5f, HalfWidth = width * 0.5f, WaterY = center.y + 0.25f
+        });
 
         // Orillas de barro a la entrada y salida del agua.
         foreach (float d in new[] { s0 - 1.5f, s1 + 1.5f })
         {
             int i = track.GetIndexAtDistance(d);
             MeshObject("Orilla", parent, p.PlanoAgua, track.GetSurfacePoint(i, 0f) + Vector3.up * 0.03f,
-                Quaternion.LookRotation(Flat(track.GetForward(i))), new Vector3(width, 1f, 2.2f), false, p.Berma);
+                Quaternion.LookRotation(Flat(track.GetForward(i))), new Vector3(outer * 2f, 1f, 2.2f), false, p.Berma);
         }
 
         // El agua frena: zona invisible que avisa a la bici al entrar y salir.
@@ -808,45 +843,55 @@ public static class PrototypeSceneBuilder
         box.isTrigger = true;
         box.size = new Vector3(width, 4f, length - 4f);
         box.center = new Vector3(0f, 1.5f, 0f);
-        zone.AddComponent<SlowZone>().Configure(3.5f);
+        // Dentro del agua la bici se frena mucho: cuesta cruzar el río.
+        zone.AddComponent<SlowZone>().Configure(6f);
 
-        // Piedras del río: algunas chicas en el camino (se pisan) y otras grandes a los lados.
-        for (int n = 0; n < 18; n++)
+        // Piedras del río: chicas dentro del camino (se pisan o se esquivan) y grandes por todo el cauce.
+        for (int n = 0; n < 50; n++)
         {
             float d = Range(rng, s0 - 1f, s1 + 1f);
             int i = track.GetIndexAtDistance(d);
             float hw = track.GetHalfWidth(i);
-            bool onTrail = n < 4;
-            float lateral = onTrail ? Range(rng, -hw + 0.4f, hw - 0.4f) : (rng.NextDouble() < 0.5 ? -1f : 1f) * Range(rng, hw + 0.5f, outer);
-            CreateRock(track, i, lateral, onTrail ? Range(rng, 0.25f, 0.4f) : Range(rng, 0.5f, 1.2f), onTrail, rng, p, parent);
+            bool onTrail = n < 10;
+            float lateral = onTrail ? Range(rng, -hw + 0.3f, hw - 0.3f) : (rng.NextDouble() < 0.5 ? -1f : 1f) * Range(rng, hw + 0.4f, outer);
+            float size = onTrail ? Range(rng, 0.25f, 0.45f) : Range(rng, 0.5f, 1.8f);
+            CreateRock(track, i, lateral, size, true, rng, p, parent);
         }
     }
 
     /// <summary>Montañas lejanas que asoman entre la niebla y un valle muy abajo, para que no se vea el vacío.</summary>
-    private static void BuildSurroundings(TrackGenerator track, Palette p)
+    private static void BuildSurroundings(TrackLayout layout, TrackGenerator track, Palette p)
     {
         System.Random rng = new System.Random(777);
-        Vector3 center = Vector3.zero;
-        float lowest = float.MaxValue;
+        Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
         for (int i = 0; i < track.SampleCount; i++)
         {
-            Vector3 point = track.GetPosition(i);
-            center += point;
-            lowest = Mathf.Min(lowest, point.y);
+            min = Vector3.Min(min, track.GetPosition(i));
+            max = Vector3.Max(max, track.GetPosition(i));
         }
-        center /= Mathf.Max(1, track.SampleCount);
+        Vector3 center = (min + max) * 0.5f;
+        float lowest = min.y;
+        // Las montañas van más allá de la pista entera (no solo de su centro): así ninguna cae encima del camino.
+        float ring = new Vector2(max.x - min.x, max.z - min.z).magnitude * 0.5f + (layout.MountainWalls ? 380f : 250f);
 
         Transform paisaje = new GameObject("Paisaje").transform;
         const int mountains = 10;
         for (int k = 0; k < mountains; k++)
         {
             float angle = (k / (float)mountains * 360f + Range(rng, -12f, 12f)) * Mathf.Deg2Rad;
-            float distance = Range(rng, 280f, 330f);
+            float distance = ring + Range(rng, 0f, 60f);
             Vector3 position = new Vector3(center.x + Mathf.Sin(angle) * distance, lowest - 30f, center.z + Mathf.Cos(angle) * distance);
             float radius = Range(rng, 120f, 170f);
             GameObject mountain = MeshObject("Montana", paisaje, p.Montanas[k % p.Montanas.Length], position,
                 Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f), new Vector3(radius, Range(rng, 90f, 150f), radius), false, p.Montana);
             mountain.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+        }
+
+        // Con paredes de montaña no hace falta el valle: el terreno ya cubre todo.
+        if (layout.MountainWalls)
+        {
+            foreach (Transform t in paisaje.GetComponentsInChildren<Transform>()) MarkStatic(t.gameObject);
+            return;
         }
 
         // El valle queda por debajo de la altura de reaparición, así una caída nunca "aterriza" en él.
@@ -1029,6 +1074,15 @@ public static class PrototypeSceneBuilder
     /// <summary>True si el punto está a "margin" metros o más del pie de las bermas de todos los tramos.</summary>
     private static bool IsClearOfRoad(TrackGenerator track, Vector3 position, float margin)
     {
+        foreach (TrackGenerator extra in ExtraTracks)
+        {
+            if (!IsClearOf(extra, position, margin)) return false;
+        }
+        return IsClearOf(track, position, margin);
+    }
+
+    private static bool IsClearOf(TrackGenerator track, Vector3 position, float margin)
+    {
         for (int j = 0; j < track.SampleCount; j += 2)
         {
             Vector3 d = position - track.GetPosition(j);
@@ -1044,6 +1098,372 @@ public static class PrototypeSceneBuilder
         float lowest = float.MaxValue;
         for (int i = 0; i < track.SampleCount; i++) lowest = Mathf.Min(lowest, track.GetPosition(i).y);
         SetFloat(bike, "fallHeight", lowest - 25f);
+    }
+
+    // =====================================================================
+    // Atajos ocultos
+    // =====================================================================
+
+    /// <summary>Pistas extra (los atajos) que la vegetación y el terreno también deben respetar.</summary>
+    private static readonly List<TrackGenerator> ExtraTracks = new List<TrackGenerator>();
+
+    /// <summary>Cauce de un río: el terreno se hunde ahí para que el agua corra entre orillas.</summary>
+    private struct RiverBed
+    {
+        public Vector3 Center, Forward, Right;
+        public float HalfLength, HalfWidth, WaterY;
+    }
+
+    private static readonly List<RiverBed> Rivers = new List<RiverBed>();
+
+    /// <summary>
+    /// Crea los atajos del diseño: senderos angostos y empinados que salen de la pista y vuelven más abajo.
+    /// La entrada queda entre matorrales para que no se note a primera vista.
+    /// </summary>
+    private static void BuildShortcuts(TrackLayout layout, TrackGenerator track, List<float> starts, System.Random rng, Palette p)
+    {
+        ExtraTracks.Clear();
+        Rivers.Clear();
+        if (layout.Shortcuts.Count == 0) return;
+        Transform group = new GameObject("Atajos").transform;
+        int number = 0;
+        foreach (TrackShortcut shortcut in layout.Shortcuts)
+        {
+            int from = FindSection(layout, shortcut.FromSection);
+            int to = FindSection(layout, shortcut.ToSection);
+            if (from < 0 || to < 0)
+            {
+                Debug.LogWarning("PrototypeSceneBuilder: el atajo '" + shortcut.Name + "' usa un tramo que no existe ('" +
+                                 shortcut.FromSection + "' o '" + shortcut.ToSection + "'). Revisa los nombres en el diseño.");
+                continue;
+            }
+            float da = starts[from] + layout.Sections[from].Length * shortcut.FromPosition;
+            float db = starts[to] + layout.Sections[to].Length * shortcut.ToPosition;
+            int ia = track.GetIndexAtDistance(da), ib = track.GetIndexAtDistance(db);
+            Vector3 pa = track.GetPosition(ia), pb = track.GetPosition(ib);
+            if (db <= da + 10f || pb.y >= pa.y)
+            {
+                Debug.LogWarning("PrototypeSceneBuilder: el atajo '" + shortcut.Name + "' debe terminar más abajo y más adelante que donde empieza.");
+                continue;
+            }
+
+            // Sale por el lado de la pista que mira hacia el final del atajo (y entra igual).
+            int sideA = Vector3.Dot(pb - pa, track.GetRight(ia)) >= 0f ? 1 : -1;
+            int sideB = Vector3.Dot(pa - pb, track.GetRight(ib)) >= 0f ? 1 : -1;
+            Vector3 start = track.GetSurfacePoint(ia, sideA * (track.GetBermFootOffset(ia, sideA) + 0.3f));
+            Vector3 end = track.GetSurfacePoint(ib, sideB * (track.GetBermFootOffset(ib, sideB) + 0.3f));
+            Vector3 across = Vector3.Cross(Vector3.up, Flat(end - start));
+
+            List<Vector3> points = new List<Vector3>();
+            List<float> widths = new List<float>();
+            int steps = Mathf.Max(3, Mathf.CeilToInt(Vector3.Distance(start, end) / 4f));
+            for (int k = 0; k <= steps; k++)
+            {
+                float t = k / (float)steps;
+                Vector3 point = Vector3.Lerp(start, end, t) + across * Mathf.Sin(t * Mathf.PI) * shortcut.Bend;
+                point.y = Mathf.Lerp(start.y, end.y, t) + 0.04f;
+                points.Add(point);
+                widths.Add(shortcut.HalfWidth);
+            }
+
+            GameObject go = new GameObject("Atajo " + shortcut.Name);
+            go.transform.SetParent(group, false);
+            go.AddComponent<MeshFilter>();
+            MeshRenderer renderer = go.AddComponent<MeshRenderer>();
+            go.AddComponent<MeshCollider>();
+            TrackGenerator path = go.AddComponent<TrackGenerator>();
+            path.SetLayout(points, widths);
+            // Sendero sin construir: casi sin bermas ni peralte, con poco pasto alrededor.
+            SetFloat(path, "defaultHalfWidth", shortcut.HalfWidth);
+            SetFloat(path, "bermBaseHeight", 0.12f);
+            SetFloat(path, "bermMaxExtraHeight", 0.15f);
+            SetFloat(path, "maxBankAngle", 0f);
+            SetFloat(path, "grassWidth", 1.5f);
+            Mesh mesh = VisualAssetFactory.SaveMeshAsset(path.Generate(), VisualAssetFactory.ModelsFolder + "/" + layout.SceneName + "_Atajo" + (++number) + ".asset");
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            MeshCollider meshCollider = go.GetComponent<MeshCollider>();
+            meshCollider.sharedMesh = null;
+            meshCollider.sharedMesh = mesh;
+            renderer.sharedMaterials = new[] { p.Tierra, p.Berma, p.Pasto, p.Grava };
+            MarkStatic(go);
+            ExtraTracks.Add(path);
+
+            if (shortcut.Roots)
+            {
+                for (float d = 4f; d < path.TotalLength - 3f; d += Range(rng, 3.5f, 6f)) CreateRoot(path, d, false, rng, p, go.transform);
+            }
+
+            // Entrada camuflada: matorral a los lados de la boca del atajo, sobre la pista principal.
+            HideEntrance(track, ia, sideA, rng, p, go.transform);
+            HideEntrance(track, ib, sideB, rng, p, go.transform);
+            Debug.Log("DownhillRace: atajo '" + shortcut.Name + "' de " + path.TotalLength.ToString("0") + " m (ahorra " +
+                      (db - da - path.TotalLength).ToString("0") + " m).");
+        }
+    }
+
+    private static void HideEntrance(TrackGenerator track, int index, int side, System.Random rng, Palette p, Transform parent)
+    {
+        foreach (float along in new[] { -3.2f, -2.2f, 2.2f, 3.2f })
+        {
+            int i = track.GetIndexAtDistance(track.GetDistance(index) + along);
+            float lateral = side * (track.GetBermFootOffset(i, side) + Range(rng, 0f, 0.8f));
+            Mesh bush = p.Arbustos[rng.Next(p.Arbustos.Length)];
+            Material leaves = p.Dry ? p.Hojas : p.HojasVerdes;
+            MeshObject("ArbustoEntrada", parent, bush, track.GetSurfacePoint(i, lateral),
+                Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f), Vector3.one * Range(rng, 1.1f, 1.5f), true, p.Tronco, leaves);
+        }
+    }
+
+    private static int FindSection(TrackLayout layout, string name)
+    {
+        for (int k = 0; k < layout.Sections.Count; k++)
+        {
+            if (layout.Sections[k].Name == name) return k;
+        }
+        return -1;
+    }
+
+    // =====================================================================
+    // Paredes de montaña (terreno)
+    // =====================================================================
+
+    /// <summary>
+    /// Terreno alrededor de toda la pista: bajo el camino queda escondido, entre tramos cercanos forma
+    /// una ladera continua y, lejos del camino, sube en paredes empinadas. Así parece que la pista va
+    /// por dentro de la montaña y no se ve vacío a los lados.
+    /// </summary>
+    private static void BuildTerrain(TrackLayout layout, TrackGenerator track, Palette p)
+    {
+        List<TrackGenerator> all = new List<TrackGenerator> { track };
+        all.AddRange(ExtraTracks);
+        List<Vector3> points = new List<Vector3>();
+        List<float> wallStarts = new List<float>();
+        List<float> sinks = new List<float>();
+        List<int> riverOf = new List<int>();
+        foreach (TrackGenerator t in all)
+        {
+            bool shortcut = t != track;
+            for (int i = 0; i < t.SampleCount; i += 2)
+            {
+                Vector3 point = t.GetPosition(i);
+                points.Add(point);
+                // La pared empieza dentro del pasto (tapa el borde de la malla) pero nunca sobre el camino.
+                float edge = Mathf.Max(t.GetOuterOffset(i, -1), t.GetOuterOffset(i, 1));
+                wallStarts.Add(Mathf.Max(edge - 4f, t.GetHalfWidth(i) + (shortcut ? 1.5f : 2.5f)));
+                // Bajo la pista principal el terreno va hondo (bermas y peralte); junto a un atajo casi a ras.
+                sinks.Add(shortcut ? 0.35f : 1.6f);
+                riverOf.Add(shortcut ? -1 : RiverAt(point));
+            }
+        }
+
+        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+        foreach (Vector3 point in points)
+        {
+            minX = Mathf.Min(minX, point.x); maxX = Mathf.Max(maxX, point.x);
+            minZ = Mathf.Min(minZ, point.z); maxZ = Mathf.Max(maxZ, point.z);
+            minY = Mathf.Min(minY, point.y); maxY = Mathf.Max(maxY, point.y);
+        }
+        const float margin = 220f;
+        float originX = minX - margin, originZ = minZ - margin;
+        float sizeX = maxX - minX + margin * 2f, sizeZ = maxZ - minZ + margin * 2f;
+        float baseY = minY - 30f;
+        float heightRange = maxY + layout.WallHeight * 1.6f + 20f - baseY;
+        int resolution = Mathf.Max(sizeX, sizeZ) > 1400f ? 1025 : 513;
+
+        // Cuadrícula para encontrar rápido los puntos de pista cercanos.
+        const float cell = 20f;
+        int gridW = Mathf.CeilToInt(sizeX / cell) + 1, gridH = Mathf.CeilToInt(sizeZ / cell) + 1;
+        List<int>[] grid = new List<int>[gridW * gridH];
+        for (int k = 0; k < points.Count; k++)
+        {
+            int gx = Mathf.FloorToInt((points[k].x - originX) / cell), gz = Mathf.FloorToInt((points[k].z - originZ) / cell);
+            int g = gz * gridW + gx;
+            if (grid[g] == null) grid[g] = new List<int>();
+            grid[g].Add(k);
+        }
+
+        float[,] heights = new float[resolution, resolution];
+        for (int zi = 0; zi < resolution; zi++)
+        {
+            float z = originZ + zi / (float)(resolution - 1) * sizeZ;
+            for (int xi = 0; xi < resolution; xi++)
+            {
+                float x = originX + xi / (float)(resolution - 1) * sizeX;
+                float h = TerrainHeight(x, z, points, wallStarts, sinks, riverOf, grid, gridW, gridH, originX, originZ, cell, layout);
+                heights[zi, xi] = Mathf.Clamp01((h - baseY) / heightRange);
+            }
+        }
+
+        string dataPath = VisualAssetFactory.ModelsFolder + "/" + layout.SceneName + "_Terreno.asset";
+        AssetDatabase.DeleteAsset(dataPath);
+        TerrainData data = new TerrainData();
+        data.heightmapResolution = resolution;
+        data.size = new Vector3(sizeX, heightRange, sizeZ);
+        data.SetHeights(0, 0, heights);
+
+        // Texturas: pasto en lo suave y roca en lo empinado.
+        TerrainLayer grass = VisualAssetFactory.TerrainLayerAsset(layout.SceneName + "_CapaPasto", p.TexPasto, p.TexPastoNormal, 8f);
+        TerrainLayer rock = VisualAssetFactory.TerrainLayerAsset(layout.SceneName + "_CapaRoca", p.TexRoca, p.TexRocaNormal, 6f);
+        data.terrainLayers = new[] { grass, rock };
+        int alphaRes = 256;
+        data.alphamapResolution = alphaRes;
+        float[,,] alpha = new float[alphaRes, alphaRes, 2];
+        for (int y = 0; y < alphaRes; y++)
+        {
+            for (int x = 0; x < alphaRes; x++)
+            {
+                float steep = data.GetSteepness(x / (float)(alphaRes - 1), y / (float)(alphaRes - 1));
+                float rockAmount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(28f, 42f, steep));
+                alpha[y, x, 0] = 1f - rockAmount;
+                alpha[y, x, 1] = rockAmount;
+            }
+        }
+        data.SetAlphamaps(0, 0, alpha);
+        AssetDatabase.CreateAsset(data, dataPath);
+
+        GameObject go = Terrain.CreateTerrainGameObject(data);
+        go.name = "Montañas";
+        go.transform.position = new Vector3(originX, baseY, originZ);
+        Terrain terrain = go.GetComponent<Terrain>();
+        terrain.materialTemplate = VisualAssetFactory.TerrainMaterial("Terreno");
+        terrain.heightmapPixelError = 6f;
+        terrain.basemapDistance = 350f;
+        terrain.drawInstanced = true;
+        MarkStatic(go);
+
+        ScatterOnWalls(track, terrain, p);
+    }
+
+    /// <summary>Altura del terreno en (x, z): debajo de la pista cerca de ella; paredes que suben al alejarse.</summary>
+    private static float TerrainHeight(float x, float z, List<Vector3> points, List<float> wallStarts, List<float> sinks,
+        List<int> riverOf, List<int>[] grid, int gridW, int gridH, float originX, float originZ, float cell, TrackLayout layout)
+    {
+        int gx = Mathf.FloorToInt((x - originX) / cell), gz = Mathf.FloorToInt((z - originZ) / cell);
+        const int reach = 3; // 3 celdas = 60 m alrededor.
+        double weightSum = 0, heightSum = 0, sinkSum = 0;
+        float best = float.MaxValue;
+        int nearest = -1;
+        for (int oz = -reach; oz <= reach; oz++)
+        {
+            int cz = gz + oz;
+            if (cz < 0 || cz >= gridH) continue;
+            for (int ox = -reach; ox <= reach; ox++)
+            {
+                int cx = gx + ox;
+                if (cx < 0 || cx >= gridW) continue;
+                List<int> bucket = grid[cz * gridW + cx];
+                if (bucket == null) continue;
+                foreach (int k in bucket)
+                {
+                    float dx = points[k].x - x, dz = points[k].z - z;
+                    float d2 = dx * dx + dz * dz;
+                    // Peso muy fuerte a lo cercano: así el terreno pasa suave entre dos tramos a distinta altura.
+                    double w = 1.0 / (d2 * d2 + 1.0);
+                    weightSum += w;
+                    heightSum += w * points[k].y;
+                    sinkSum += w * sinks[k];
+                    if (d2 < best) { best = d2; nearest = k; }
+                }
+            }
+        }
+        if (nearest < 0)
+        {
+            for (int k = 0; k < points.Count; k += 4)
+            {
+                float dx = points[k].x - x, dz = points[k].z - z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < best) { best = d2; nearest = k; }
+            }
+            heightSum = points[nearest].y;
+            sinkSum = sinks[nearest];
+            weightSum = 1.0;
+        }
+
+        float distance = Mathf.Sqrt(best);
+        float ground = (float)((heightSum - sinkSum) / weightSum); // Queda bajo el pasto de la pista.
+        float beyond = distance - wallStarts[nearest];
+        float result = ground;
+        if (beyond > 0f)
+        {
+            // Pared que sube rápido y se va aplanando arriba, con cerros y quebradas irregulares.
+            float large = Mathf.PerlinNoise(x * 0.006f + 13.1f, z * 0.006f + 7.7f);
+            float small = Mathf.PerlinNoise(x * 0.03f + 41.3f, z * 0.03f + 3.9f);
+            float height = layout.WallHeight * (0.55f + large * 0.9f);
+            float rise = height * (1f - Mathf.Exp(-beyond * layout.WallSteepness / Mathf.Max(1f, height)));
+            result = ground + rise + (small - 0.5f) * 6f * Mathf.Clamp01(beyond / 15f);
+        }
+
+        // Cauce del río: solo donde lo más cercano es el cruce del río (no hunde otras partes de la pista).
+        int river = riverOf[nearest];
+        if (river >= 0)
+        {
+            RiverBed bed = Rivers[river];
+            Vector3 offset = new Vector3(x - bed.Center.x, 0f, z - bed.Center.z);
+            float along = Mathf.Abs(Vector3.Dot(offset, bed.Forward));
+            float across = Mathf.Abs(Vector3.Dot(offset, bed.Right));
+            float carve = (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(bed.HalfLength - 6f, bed.HalfLength + 6f, along)))
+                        * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(bed.HalfWidth - 10f, bed.HalfWidth, across)));
+            float bottom = bed.WaterY - 1.2f;
+            if (result > bottom) result = Mathf.Lerp(result, bottom, carve);
+        }
+        return result;
+    }
+
+    /// <summary>Índice del río cuyo cruce contiene este punto de la pista, o -1.</summary>
+    private static int RiverAt(Vector3 point)
+    {
+        for (int r = 0; r < Rivers.Count; r++)
+        {
+            Vector3 offset = point - Rivers[r].Center;
+            offset.y = 0f;
+            if (Mathf.Abs(Vector3.Dot(offset, Rivers[r].Forward)) <= Rivers[r].HalfLength + 12f &&
+                Mathf.Abs(Vector3.Dot(offset, Rivers[r].Right)) <= 6f) return r;
+        }
+        return -1;
+    }
+
+    /// <summary>¿Cae dentro del agua de algún río? (ahí no se planta vegetación de ladera).</summary>
+    private static bool InRiver(Vector3 position)
+    {
+        foreach (RiverBed bed in Rivers)
+        {
+            Vector3 offset = position - bed.Center;
+            offset.y = 0f;
+            if (Mathf.Abs(Vector3.Dot(offset, bed.Forward)) <= bed.HalfLength + 4f &&
+                Mathf.Abs(Vector3.Dot(offset, bed.Right)) <= bed.HalfWidth + 2f) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Matorral y árboles sueltos en las laderas, para que las paredes no se vean peladas.</summary>
+    private static void ScatterOnWalls(TrackGenerator track, Terrain terrain, Palette p)
+    {
+        System.Random rng = new System.Random(4242);
+        Transform group = new GameObject("VegetacionLaderas").transform;
+        float terrainY = terrain.transform.position.y;
+        for (int n = 0; n < 700; n++)
+        {
+            int i = rng.Next(track.SampleCount);
+            int side = rng.NextDouble() < 0.5 ? -1 : 1;
+            Vector3 basePoint = track.GetPosition(i) + track.GetRight(i) * side * (track.GetOuterOffset(i, side) + Range(rng, 2f, 60f));
+            Vector3 position = new Vector3(basePoint.x, terrain.SampleHeight(basePoint) + terrainY - 0.1f, basePoint.z);
+            if (!IsClearOfRoad(track, position, 2f) || InRiver(position)) continue;
+            Quaternion yaw = Quaternion.Euler(0f, Range(rng, 0f, 360f), 0f);
+            double pick = rng.NextDouble();
+            if (p.Dry)
+            {
+                if (pick < 0.6) MeshObject("Arbusto", group, p.Arbustos[rng.Next(p.Arbustos.Length)], position, yaw, Vector3.one * Range(rng, 1f, 1.8f), true, p.Tronco, p.Hojas);
+                else if (pick < 0.9) MeshObject("ArbolSeco", group, p.Frondosos[rng.Next(p.Frondosos.Length)], position, yaw, Vector3.one * Range(rng, 0.6f, 1f), true, p.Tronco, p.Hojas);
+                else MeshObject("Agave", group, p.Agaves[rng.Next(p.Agaves.Length)], position, yaw, Vector3.one * Range(rng, 1f, 1.5f), false, p.Agave);
+            }
+            else
+            {
+                bool pine = pick < 0.7;
+                MeshObject(pine ? "Pino" : "ArbolFrondoso", group, pine ? p.Pinos[rng.Next(p.Pinos.Length)] : p.Frondosos[rng.Next(p.Frondosos.Length)],
+                    position, yaw, Vector3.one * Range(rng, 0.85f, 1.3f), true, p.Tronco, pine ? p.Agujas : p.Hojas);
+            }
+        }
+        foreach (Transform t in group.GetComponentsInChildren<Transform>()) MarkStatic(t.gameObject);
     }
 
     // =====================================================================
