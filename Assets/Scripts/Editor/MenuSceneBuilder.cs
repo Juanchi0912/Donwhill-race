@@ -117,7 +117,7 @@ public static class MenuSceneBuilder
             UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         Button arcade = ModeCard(modes, font, GameMode.Arcade, "Próximamente", 0);
         Button avalancha = ModeCard(modes, font, GameMode.Avalancha, "Próximamente", 1);
-        Button carrera = ModeCard(modes, font, GameMode.Carrera, "Contrarreloj · Pista 1", 2);
+        Button carrera = ModeCard(modes, font, GameMode.Carrera, "Contrarreloj · 2 pistas", 2);
         Button freeride = ModeCard(modes, font, GameMode.Freeride, "Próximamente", 3);
         Text message = UiBuilder.Label("Aviso", modes, font, "Próximamente", 40, new Vector2(0.5f, 0.5f), new Vector2(0f, -190f),
             UiBuilder.Gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
@@ -131,7 +131,8 @@ public static class MenuSceneBuilder
         UiBuilder.Label("Titulo", tracks, font, "ELIGE LA PISTA", 90, new Vector2(0.5f, 1f), new Vector2(0f, -180f),
             UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         Button track1 = TrackCard(tracks, font, "PISTA 1", "Bosque nublado  ·  0,55 km", new Vector2(-300f, 20f));
-        Button track2 = TrackCard(tracks, font, "LA PAZ — YUNGUILLA", "Valle seco, Azuay  ·  1,3 km", new Vector2(300f, 20f));
+        // La segunda pista se presenta por su nombre ("La Paz"), nunca como "Pista 2".
+        Button track2 = TrackCard(tracks, font, "LA PAZ", "Yunguilla, Azuay  ·  1,3 km", new Vector2(300f, 20f));
         Button tracksBack = UiBuilder.Button("Volver", tracks, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));
         Footer(tracks, font, "← →  elegir     ·     Enter  aceptar     ·     Esc  volver");
 

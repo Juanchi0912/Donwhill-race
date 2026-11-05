@@ -3,12 +3,15 @@
 ## Flujo
 
 ```
-Presentación  →  Menú principal  →  Modos de juego  →  Carga  →  Carrera (Pista01)
-"DOWNHILL RACE"   Jugar               Arcade     (próximamente)
-                  Configuraciones     Avalancha  (próximamente)
+Presentación  →  Menú principal  →  Modos de juego  →  Elige la pista  →  Carga  →  Carrera
+"DOWNHILL RACE"   Jugar               Arcade     (próximamente)   Pista 1
+                  Configuraciones     Avalancha  (próximamente)   La Paz
                   (vacía por ahora)   Carrera    ✔
                                       Freeride   (próximamente)
 ```
+
+- **Elige la pista** (solo en Carrera): **Pista 1** (bosque nublado, escena `Pista01`) y
+  **La Paz** (Yunguilla, Azuay, escena `Pista02`). En el juego nunca se muestra como "Pista 2".
 
 - **Presentación:** solo el nombre del juego. Aparece y se desvanece en unos 3 s;
   cualquier botón (Enter, Esc, Espacio, clic) la salta.
@@ -29,8 +32,9 @@ Presentación  →  Menú principal  →  Modos de juego  →  Carga  →  Carre
 ## Crear o reconstruir la escena
 
 Menú de Unity: **DownhillRace → Crear escena del menú**. Crea `Assets/Scenes/Menu.unity`
-y la deja primera en Build Settings (la pista queda segunda). Para jugar el flujo completo,
-abre `Menu.unity` y presiona Play.
+y la deja primera en Build Settings (después van `Pista01` y `Pista02`). Para jugar el flujo completo,
+abre `Menu.unity` y presiona Play. Las dos pistas tienen que estar construidas antes
+(**Crear escena del prototipo** y **Crear escena: La Paz — Yunguilla**).
 
 ## Scripts
 
