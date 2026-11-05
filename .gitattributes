@@ -12,6 +12,9 @@
 *.anim      text merge=unityyamlmerge eol=lf
 *.mat       text merge=unityyamlmerge eol=lf
 
+# El terreno (TerrainData) Unity lo guarda en binario: no se le cambian los saltos de línea.
+*_Terreno.asset -text merge=binary diff=binary
+
 # Imágenes
 *.png  filter=lfs diff=lfs merge=lfs -text
 *.jpg  filter=lfs diff=lfs merge=lfs -text
