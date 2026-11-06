@@ -24,12 +24,30 @@ public static class RealMapTrails
         public int[] Segments;
     }
 
+    /// <summary>Estilo de ambientación de una parte de la ruta (sacado de los videos de cada pista).</summary>
+    public enum Decor
+    {
+        Pueblo,          // Casas y postes a los lados.
+        LaderaAbierta,   // Pasto seco y vista: sin árboles cerca, agaves sueltos.
+        Matorral,        // Arbustos que cierran el sendero por los dos lados.
+        Pedregal         // Rocas en los bordes y algunas sueltas en el camino, agaves.
+    }
+
+    /// <summary>Zona de ambientación: de "From" a "To" metros a lo largo de la primera ruta.</summary>
+    public class Zone
+    {
+        public string Name;
+        public Decor Style;
+        public float From, To;
+    }
+
     /// <summary>Todos los senderos de un mapa.</summary>
     public class Set
     {
         public string MapName;
         public List<Segment> Segments = new List<Segment>();
         public List<Route> Routes = new List<Route>();
+        public List<Zone> Zones = new List<Zone>();
     }
 
     /// <summary>

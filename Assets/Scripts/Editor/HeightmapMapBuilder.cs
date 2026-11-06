@@ -145,11 +145,13 @@ public static class HeightmapMapBuilder
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Plantando árboles", 0.7f);
             List<Vector2> openAreas = new List<Vector2>();
-            if (trails != null)
+            if (trails != null && trailSet.Routes.Count > 0)
             {
-                // Salida y meta despejadas (como el potrero de la salida en las fotos).
-                openAreas.Add(trails[0].Points[0]);
-                TrailTerrainCarver.Line last = trails[trails.Count - 1];
+                // Salida y meta despejadas (como el potrero de la salida en las fotos), según la primera ruta:
+                // el último tramo de la lista puede ser una línea alternativa, no la llegada.
+                int[] main = trailSet.Routes[0].Segments;
+                openAreas.Add(trails[main[0]].Points[0]);
+                TrailTerrainCarver.Line last = trails[main[main.Length - 1]];
                 openAreas.Add(last.Points[last.Points.Length - 1]);
             }
             int trees = ScatterTrees(data, s, null, trailEdge, openAreas);
@@ -168,7 +170,8 @@ public static class HeightmapMapBuilder
             terrain.treeDistance = 1000f;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
 
-            List<Vector3[]> routes = trails != null ? BuildTrailObjects(terrain, trails, trailSet) : null;
+            List<float[]> routeWidths = null;
+            List<Vector3[]> routes = trails != null ? BuildTrailObjects(terrain, trails, trailSet, out routeWidths) : null;
             bool playable = s.Playable && routes != null && routes.Count > 0;
             BikeController bike = null;
             if (playable)
@@ -179,6 +182,12 @@ public static class HeightmapMapBuilder
             else
             {
                 BuildEnvironment(s, sizeX, sizeY, sizeZ);
+            }
+            // Ambientación por zonas (pueblo, matorral, pedregal…) a lo largo de la primera ruta.
+            if (routes != null && routes.Count > 0 && trailSet.Zones.Count > 0)
+            {
+                EditorUtility.DisplayProgressBar("Crear mapa", "Ambientación: pueblo, matorral, pedregal", 0.93f);
+                RealMapDecor.Build(terrain, routes[0], routeWidths[0], trailSet.Zones, s.Ambience == TrackLayout.Theme.ValleSeco, s.Seed);
             }
 
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
@@ -484,9 +493,11 @@ public static class HeightmapMapBuilder
     /// Un objeto por ruta (con su línea dibujada en la vista de escena) y marcas de salida y meta,
     /// para ubicarse al poner rampas y puentes.
     /// </summary>
-    private static List<Vector3[]> BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines, RealMapTrails.Set set)
+    private static List<Vector3[]> BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines, RealMapTrails.Set set,
+        out List<float[]> halfWidths)
     {
         List<Vector3[]> routes = new List<Vector3[]>();
+        halfWidths = new List<float[]>();
         Transform parent = new GameObject("Senderos").transform;
         Vector3 origin = terrain.transform.position;
         List<RealMapTrails.Segment> segments = set.Segments;
@@ -494,21 +505,32 @@ public static class HeightmapMapBuilder
         foreach (RealMapTrails.Route route in set.Routes)
         {
             List<Vector2> flat = new List<Vector2>();
+            List<float> flatHalf = new List<float>();
             float width = 0f;
             foreach (int index in route.Segments)
             {
                 Vector2[] points = lines[index].Points;
-                for (int i = flat.Count > 0 ? 1 : 0; i < points.Length; i++) flat.Add(points[i]);
+                for (int i = flat.Count > 0 ? 1 : 0; i < points.Length; i++)
+                {
+                    flat.Add(points[i]);
+                    flatHalf.Add(segments[index].HalfWidth);
+                }
                 width = Mathf.Max(width, segments[index].HalfWidth * 2f);
             }
             Vector2[] sparse = TrailTerrainCarver.Resample(flat, 2f);
             Vector3[] world = new Vector3[sparse.Length];
+            float[] half = new float[sparse.Length];
+            int cursor = 0;
             for (int i = 0; i < sparse.Length; i++)
             {
                 Vector3 p = origin + new Vector3(sparse[i].x, 0f, sparse[i].y);
                 p.y = terrain.SampleHeight(p) + origin.y;
                 world[i] = p;
+                // El medio ancho del punto original más cercano que viene después (los puntos van en orden).
+                while (cursor < flat.Count - 1 && (flat[cursor] - sparse[i]).sqrMagnitude > (flat[cursor + 1] - sparse[i]).sqrMagnitude) cursor++;
+                half[i] = flatHalf[cursor];
             }
+            halfWidths.Add(half);
             GameObject go = new GameObject("Ruta " + route.Name);
             go.transform.SetParent(parent, false);
             go.AddComponent<TrailPath>().Configure(route.Name, route.Color, width, world);

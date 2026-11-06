@@ -1,6 +1,6 @@
 # Pista 2: La Paz — Yunguilla (Azuay)
 
-> **Reemplazada.** La Paz ahora es un **mapa real** (heightmap de Yunguilla, 4,7 km, ~1 200 m de bajada,
+> **Reemplazada.** La Paz ahora es un **mapa real** (heightmap de Yunguilla, ruta de Google Earth, 2,8 km, ~4 min,
 > pista ancha para Avalancha): ver [MAPA_REAL.md](MAPA_REAL.md#la-paz--yunguilla). El menú carga la escena
 > `LaPaz`. Lo de abajo describe la versión generada anterior (escena `Pista02`), que sigue existiendo pero
 > ya no aparece en el menú.

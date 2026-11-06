@@ -135,20 +135,33 @@ satelitales (coincidencia 0,9999).
 - **Salida:** -3.34744, -79.26852 (2 196 m), abajo a la derecha del heightmap.
 - **Meta:** -3.31872, -79.29635 (1 004 m), arriba a la izquierda.
 
-**Primer trazado** (automático, la bajada más natural del cerro; se afinará con la ruta real por partes):
-**4,7 km**, baja **1 193 m**, pendiente media **25 %**, ~1,1 km de tramos de más de 40 %, casi sin subidas.
-Baja por la loma larga hacia el valle del noroeste. Es una pista de **Avalancha**: **14 m** de ancho casi
-todo el recorrido (3 o 4 corredores juntos) y dos **cuellos de botella de 8 m** (*Cuello de la quebrada*
-y *Cuello del pueblo*). Mapa: [`Docs/LaPaz_Ruta.png`](LaPaz_Ruta.png).
+**La ruta** es la que marcaste en **Google Earth** (guardada en
+[`Docs/LaPaz_Ruta_GoogleEarth.kml`](LaPaz_Ruta_GoogleEarth.kml), se abre en Google Earth). Completa dura
+unos **7 minutos**, así que se recortó a **~4 minutos**: va desde la salida hasta 1,3 km después de empezar
+la bajada larga. El resto (bajada larga completa, zigzags de abajo y llegada al río) queda en el KML.
+Mapa: [`Docs/LaPaz_Ruta.png`](LaPaz_Ruta.png).
 
-Valores recomendados: sin exagerar el desnivel (×1, ya baja casi 1 200 m), quebradas acentuadas 0,3,
-suavizado 4 m, valle seco y 6 árboles por hectárea (el mapa es grande). Cuando la ruta esté lista se
-recorta lo que sobra, como en Turi, para ganar detalle.
+| Parte | Metros | Ancho | Ambientación (de los videos) |
+|---|---|---|---|
+| Salida en el pueblo | 0 – 557 | **16 m** (arranca el grupo) | Casas, galpones y postes; luego ladera de pasto seco |
+| Zigzags | 557 – 1 510 | **5 m, de uno solo** | Matorral cerrado y después pedregal (rocas en los bordes, piedras sueltas, agaves) |
+| Cresta rápida | 1 510 – 2 837 | **14 m** | Cresta abierta con vista al valle; un tramo con piedras |
+
+Las **3 líneas alternativas** que marcaste en los zigzags también se tallan (de uno solo, 4 m).
+
+Con **desnivel ×1,5** y quebradas acentuadas 0,35: **2,7 km**, baja **741 m** en el juego (476 m reales),
+pendiente media **27 %**, ~**3:55** de bajada según una simulación con la física de la bici.
+Las rocas del borde tienen colisión (sirven de rampa natural o hay que esquivarlas); las piedras sueltas
+dentro del sendero no.
+
+Valores recomendados: desnivel ×1,5, quebradas 0,35, suavizado 4 m, valle seco y 6 árboles por hectárea
+(el mapa es grande). Cuando la ruta esté lista se recorta lo que sobra, como en Turi, para ganar detalle.
 
 Mientras no exista el modo Avalancha (salida en grupo con rivales), se juega en **Carrera → La Paz**
 como contrarreloj. La versión generada anterior (`Pista02`) ya no sale en el menú.
 
-El trazado está en `Assets/Scripts/Editor/LaPazTrails.cs` (píxeles del heightmap, 2048 × 2048).
+El trazado y las zonas de ambientación están en `Assets/Scripts/Editor/LaPazTrails.cs`; la ambientación
+se arma en `Assets/Scripts/Editor/RealMapDecor.cs`.
 
 ## Archivos
 
@@ -163,6 +176,8 @@ El trazado está en `Assets/Scripts/Editor/LaPazTrails.cs` (píxeles del heightm
 | `Assets/Scripts/Editor/RealMapTrails.cs` | Tramos y rutas de un mapa (datos comunes) |
 | `Assets/Mapas/LaPaz_Alturas.png` | Heightmap de La Paz (16 bits) |
 | `Docs/LaPaz_Ruta.png` | Mapa de la ruta de La Paz |
+| `Docs/LaPaz_Ruta_GoogleEarth.kml` | Tu ruta de Google Earth completa (con lo que quedó fuera del recorte) |
+| `Assets/Scripts/Editor/RealMapDecor.cs` | Ambientación por zonas: pueblo, matorral, pedregal, ladera abierta |
 | `Assets/Scripts/Editor/TrailTerrainCarver.cs` | Talla los senderos en el terreno sin aplanar la bajada |
 | `Assets/Scripts/Track/TrailPath.cs` | Componente de cada ruta en la escena (línea central) |
 | `Assets/Mapas/MapaReal_Terreno.asset` | El terreno con lo que pintes (alturas, texturas, árboles) |

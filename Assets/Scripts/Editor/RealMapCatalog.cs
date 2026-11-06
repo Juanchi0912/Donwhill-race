@@ -28,7 +28,7 @@ public static class RealMapCatalog
 
     /// <summary>
     /// La Paz — Yunguilla (Santa Isabel): 4,12 km y 1 265 m de desnivel reales, heightmap de 16 bits.
-    /// La bajada ya baja casi 1 200 m, así que no se exagera; solo se acentúan un poco las quebradas.
+    /// Desnivel ×1,5 y quebradas acentuadas para que la cresta y las bajadas sean más rápidas.
     /// Valle seco con pocos árboles: el mapa es grande y así no pesa.
     /// </summary>
     private static HeightmapMapBuilder.Settings LaPazDefaults()
@@ -40,8 +40,8 @@ public static class RealMapCatalog
             Width = 4120f,
             Length = 4120f,
             HeightDifference = 1265f,
-            ReliefExaggeration = 1f,
-            ReliefAccent = 0.3f,
+            ReliefExaggeration = 1.5f,
+            ReliefAccent = 0.35f,
             SmoothMeters = 4f,
             Ambience = TrackLayout.Theme.ValleSeco,
             TreesPerHectare = 6f,
