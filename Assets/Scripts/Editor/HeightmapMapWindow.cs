@@ -56,6 +56,13 @@ public class HeightmapMapWindow : EditorWindow
         settings.HeightDifference = Mathf.Max(1f, EditorGUILayout.FloatField(new GUIContent("Desnivel total m", "Del punto más bajo al más alto de la imagen."), settings.HeightDifference));
 
         EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Relieve para el juego", EditorStyles.boldLabel);
+        settings.ReliefExaggeration = EditorGUILayout.Slider(new GUIContent("Exagerar desnivel ×", "Multiplica la altura. Tal cual es la realidad, la bajada se siente suave en el juego."), settings.ReliefExaggeration, 1f, 2.5f);
+        settings.ReliefAccent = EditorGUILayout.Slider(new GUIContent("Acentuar quebradas", "Hace más hondas las quebradas y más marcadas las lomas (0 = como el mapa)."), settings.ReliefAccent, 0f, 1f);
+        EditorGUILayout.LabelField("Desnivel en el juego", "≈ " + (settings.HeightDifference * settings.ReliefExaggeration).ToString("0") + " m (más lo que sume el acento)");
+        settings.AddTrails = EditorGUILayout.Toggle(new GUIContent("Senderos Turi Bike Park", "Talla y pinta las 4 rutas del Turi Bike Park. Solo calzan con el heightmap de Turi – Ictocruz."), settings.AddTrails);
+
+        EditorGUILayout.Space();
         EditorGUILayout.LabelField("Recorte (qué parte de la imagen usar)", EditorStyles.boldLabel);
         MinMax("Oeste → Este", ref settings.CropX);
         MinMax("Sur → Norte", ref settings.CropZ);
@@ -84,7 +91,7 @@ public class HeightmapMapWindow : EditorWindow
 
         EditorGUILayout.Space(12f);
         EditorGUILayout.LabelField("Con el mapa abierto", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("Pinta los senderos con la capa «…_CapaTierra» (Terrain → Paint Texture) y luego quita los árboles que quedaron encima.", MessageType.None);
+        EditorGUILayout.HelpBox("Para senderos nuevos o retoques: pinta con la capa «…_CapaTierra» (Terrain → Paint Texture) y luego quita los árboles que quedaron encima.", MessageType.None);
         trailMargin = EditorGUILayout.Slider(new GUIContent("Margen del sendero (m)", "Distancia libre de árboles a cada lado de lo pintado."), trailMargin, 0f, 6f);
         using (new EditorGUI.DisabledScope(FindTerrain() == null))
         {

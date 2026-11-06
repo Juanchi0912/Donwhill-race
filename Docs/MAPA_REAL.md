@@ -29,8 +29,12 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
    - **Ancho / Largo (m)**: lo que mide en la realidad el área que exportaste. Para este mapa: **1770 m**
      (si la ventana muestra otro número de una prueba anterior, cámbialo a 1770).
    - **Desnivel total (m)**: del punto más bajo al más alto (si el archivo se llama `…_331m.png` se llena solo).
+   - **Exagerar desnivel ×** (1,6): multiplica la altura. Tal cual es la realidad, la bajada se siente suave.
+   - **Acentuar quebradas** (0,35): hace más hondas las quebradas y más marcadas las lomas.
+   - **Senderos Turi Bike Park** (activado): talla y pinta las 4 rutas (ver abajo). Solo calzan con este heightmap.
    - **Recorte**: si solo quieres una parte de la imagen, mueve los dos extremos de cada barra.
      Debajo dice cuánto medirá el mapa.
+   - **Resolución**: **2049** (recomendado con senderos: cada punto del terreno mide 0,86 m y el sendero sale nítido).
    - **Suavizado**: con 8 bits deja **5–8 m** (si no, el terreno queda en escalones). Con 16 bits basta 1–2 m.
    - **Ambiente**: *Bosque Nublado* (pinos, pasto verde) o *Valle Seco* (árboles bajos, pasto seco).
    - **Árboles por hectárea**: 20 es un bosque ralo; 60 o más ya es denso (y pesa más).
@@ -42,7 +46,39 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
 Para mirar en 3D: en la vista **Scene**, mantén **clic derecho** y muévete con **W A S D** (Shift = más rápido;
 la rueda del mouse acerca y aleja). **F** con el terreno seleccionado lo encuadra completo.
 
-## 2. Pintar los senderos
+## 2. Senderos del Turi Bike Park
+
+Al crear el mapa con **Senderos Turi Bike Park** activado, las rutas quedan talladas en el terreno, pintadas
+de tierra (con roca asomando en lo más empinado) y sin árboles encima; a los lados el bosque es más cerrado,
+y la salida y la meta quedan despejadas. Se trazaron con tus capturas del mapa de calor y los senderos de
+OpenStreetMap; no es una copia exacta. Mapa de las rutas: [`Docs/TuriBikePark_Rutas.png`](TuriBikePark_Rutas.png).
+
+**Todas salen del mismo lugar y llegan al mismo lugar:**
+- **Salida (S):** arriba, junto al cruce de la Vía a Ictocruz (celda D7).
+- **Meta (M):** abajo, cerca de la Circunvalación Sur (celda E2).
+
+| Ruta | Color | Por dónde va | Largo |
+|---|---|---|---|
+| **El Bosque** | verde | Sale por el oeste, rodea la hondonada y baja recta por el bosque del lado de San Isidro | ~1,4 km |
+| **El Zigzag** | amarillo | Por la loma de la vía; en el bosque hace un zigzag de ida y vuelta | ~1,6 km |
+| **La Cresta** | rosado | Por la loma; baja por el lomo del medio | ~1,6 km |
+| **La Rápida** | rojo | Por la loma; la línea del este, la más directa abajo | ~1,65 km |
+
+Con la exageración (×1,6 y acento 0,35) cada ruta baja unos **400 m**, con pendiente media de **24–29 %**
+y tramos de **45–54°** (verdaderos drops). No se aplanó la bajada: el sendero sigue la pendiente del cerro
+y solo se nivela de lado a lado. Lo único que se ajusta son las subidas: las salidas no suben más de 3 %
+(arranque de sprint) y las rutas no más de 8 % (se suben pedaleando); para eso el sendero rebaja algunas
+lomas y rellena algunas hondonadas (hasta ~15 m en la loma de la vía).
+
+**En la escena** queda el objeto **Senderos** con:
+- **Ruta El Bosque**, **Ruta El Zigzag**, **Ruta La Cresta**, **Ruta La Rápida**: cada una dibuja su línea de color
+  en la vista **Scene** (componente `TrailPath`). Sirven para ubicar rampas y puentes, y más adelante para
+  checkpoints, reaparecer y rivales.
+- **Salida** y **Meta**: marcas con ícono, mirando hacia donde va la ruta.
+
+Las rampas, puentes de madera y demás obstáculos los pones tú encima del sendero.
+
+## 3. Pintar senderos nuevos o retocar
 
 1. Selecciona el objeto **Mapa** en la jerarquía.
 2. En el Inspector, componente **Terrain** → botón del pincel (**Paint Terrain**) → **Paint Texture**.
@@ -57,17 +93,17 @@ Consejos:
   (pincel chico, pasando a lo largo del sendero) o con **Set Height** para hacer una pequeña terraza.
 - **Ctrl+Z** deshace cualquier pincelada.
 
-## 3. Árboles a mano
+## 4. Árboles a mano
 
 **Paint Terrain → Paint Trees** (o el ícono del árbol en el componente Terrain):
 - Elige un árbol de la lista y pinta. **Tree Density** controla cuántos pone por pincelada.
 - **Shift + clic** borra árboles; **Ctrl + Shift + clic** borra solo el tipo elegido.
 - Los árboles tienen colisión en el tronco (la bici choca); los arbustos no.
 
-## 4. Lo que falta para jugarlo
+## 5. Lo que falta para jugarlo
 
-Por ahora el mapa es solo para diseñar. Cuando los senderos estén listos, el siguiente paso es convertir
-el sendero principal en pista de carrera (salida, checkpoints, meta) y agregarla al menú.
+Por ahora el mapa es solo para diseñar. Falta convertirlo en pista de **contrarreloj** (cronómetro, checkpoints
+sobre las rutas, reaparecer, meta) y agregarla al menú. Más adelante, el modo **Avalancha** (salida en grupo).
 
 ## Archivos
 
@@ -75,6 +111,10 @@ el sendero principal en pista de carrera (salida, checkpoints, meta) y agregarla
 |---|---|
 | `Assets/Mapas/MapaReal_Alturas.png` | El heightmap original |
 | `Docs/MapaReal_Guia.png` | Mapa con relieve y cuadrícula para marcar senderos |
+| `Docs/TuriBikePark_Rutas.png` | Las 4 rutas del Turi Bike Park sobre la guía |
+| `Assets/Scripts/Editor/TuriBikeParkTrails.cs` | Trazado de las rutas (puntos sobre el mapa) |
+| `Assets/Scripts/Editor/TrailTerrainCarver.cs` | Talla los senderos en el terreno sin aplanar la bajada |
+| `Assets/Scripts/Track/TrailPath.cs` | Componente de cada ruta en la escena (línea central) |
 | `Assets/Mapas/MapaReal_Terreno.asset` | El terreno con lo que pintes (alturas, texturas, árboles) |
 | `Assets/Scenes/MapaReal.unity` | La escena del mapa (no está en la lista de escenas del juego) |
 | `Assets/Prefabs/Vegetacion/` | Árboles y arbustos que usa el terreno |

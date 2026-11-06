@@ -8,8 +8,9 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Convierte un heightmap (PNG exportado de una página de mapas) en un terreno de Unity a escala real,
-/// en una escena aparte que no entra al juego: con pasto, roca, una capa de tierra para pintar senderos
-/// y árboles repartidos en las laderas. Se usa desde la ventana DownhillRace → Crear mapa desde heightmap.
+/// en una escena aparte que no entra al juego: relieve exagerado para que las bajadas se sientan extremas,
+/// los senderos del Turi Bike Park tallados y pintados, pasto, roca y bosque a los lados de las rutas.
+/// Se usa desde la ventana DownhillRace → Crear mapa desde heightmap.
 /// </summary>
 public static class HeightmapMapBuilder
 {
@@ -20,6 +21,12 @@ public static class HeightmapMapBuilder
     private const float MaxTreeSlope = 38f;
     // Peso mínimo de la capa de tierra para considerar que un punto es sendero.
     private const float TrailThreshold = 0.25f;
+    // Radio del relieve "de fondo" al acentuar: se resaltan lomas y quebradas más chicas que esto.
+    private const float AccentRadius = 60f;
+    // Árboles: espacio libre a cada lado del sendero, franja de bosque más denso y claro en salida y meta.
+    private const float TreeClearance = 2f;
+    private const float ForestBand = 30f;
+    private const float OpenAreaRadius = 30f;
 
     /// <summary>Ajustes de la ventana; se guardan entre sesiones.</summary>
     [System.Serializable]
@@ -30,9 +37,12 @@ public static class HeightmapMapBuilder
         public float Width = 1770f;            // Ancho real de la imagen completa (oeste → este), en metros. Turi–Ictocruz: 1,77 km.
         public float Length = 1770f;           // Largo real de la imagen completa (sur → norte), en metros.
         public float HeightDifference = 331f;  // Del punto más bajo al más alto de la imagen completa.
+        public float ReliefExaggeration = 1.6f; // Multiplica el desnivel: la bajada real se sentiría suave en el juego.
+        public float ReliefAccent = 0.35f;     // Hace más hondas las quebradas y más marcadas las lomas.
+        public bool AddTrails = true;          // Senderos del Turi Bike Park (solo sirven con este heightmap).
         public Vector2 CropX = new Vector2(0f, 1f);
         public Vector2 CropZ = new Vector2(0f, 1f);
-        public int Resolution = 1025;
+        public int Resolution = 2049;
         public float SmoothMeters = 6f;
         public TrackLayout.Theme Ambience = TrackLayout.Theme.BosqueNublado;
         public float TreesPerHectare = 20f;
@@ -74,28 +84,42 @@ public static class HeightmapMapBuilder
             EditorUtility.DisplayProgressBar("Crear mapa", "Leyendo el heightmap", 0.05f);
             float[,] image = PngHeightmapReader.Read(s.HeightmapPath, out int bitDepth);
 
-            EditorUtility.DisplayProgressBar("Crear mapa", "Recortando y suavizando las alturas", 0.2f);
+            EditorUtility.DisplayProgressBar("Crear mapa", "Recortando, suavizando y exagerando el relieve", 0.15f);
             int res = s.Resolution;
             float sizeX = s.CroppedWidth, sizeZ = s.CroppedLength;
             float[,] heights = Resample(image, s.CropX, s.CropZ, res);
             float metersPerSample = Mathf.Max(sizeX, sizeZ) / (res - 1);
             Smooth(heights, Mathf.RoundToInt(s.SmoothMeters / metersPerSample));
+            if (s.ReliefAccent > 0f) AccentRelief(heights, Mathf.RoundToInt(AccentRadius / metersPerSample), s.ReliefAccent);
 
-            // Se conserva la escala real: el recorte mide solo el desnivel que tiene dentro.
+            // A metros: la imagen completa (0–1) mide el desnivel real, multiplicado por la exageración.
+            float verticalScale = s.HeightDifference * Mathf.Max(0.1f, s.ReliefExaggeration);
+            for (int z = 0; z < res; z++)
+            {
+                for (int x = 0; x < res; x++) heights[z, x] *= verticalScale;
+            }
+
+            List<TrailTerrainCarver.Line> trails = null;
+            if (s.AddTrails)
+            {
+                EditorUtility.DisplayProgressBar("Crear mapa", "Tallando los senderos del Turi Bike Park", 0.3f);
+                trails = TrailTerrainCarver.BuildLines(TuriBikeParkTrails.Segments(), s.CropX, s.CropZ, sizeX, sizeZ);
+                TrailTerrainCarver.Carve(heights, sizeX, sizeZ, trails);
+            }
+
             float min = float.MaxValue, max = float.MinValue;
             foreach (float h in heights)
             {
                 min = Mathf.Min(min, h);
                 max = Mathf.Max(max, h);
             }
-            float range = Mathf.Max(max - min, 1e-4f);
+            float sizeY = Mathf.Max(1f, max - min);
             for (int z = 0; z < res; z++)
             {
-                for (int x = 0; x < res; x++) heights[z, x] = (heights[z, x] - min) / range;
+                for (int x = 0; x < res; x++) heights[z, x] = (heights[z, x] - min) / sizeY;
             }
-            float sizeY = Mathf.Max(1f, s.HeightDifference * range);
 
-            EditorUtility.DisplayProgressBar("Crear mapa", "Creando el terreno", 0.4f);
+            EditorUtility.DisplayProgressBar("Crear mapa", "Creando el terreno", 0.45f);
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             VisualAssetFactory.EnsureFolder(MapsFolder);
             string dataPath = MapsFolder + "/" + s.MapName + "_Terreno.asset";
@@ -105,11 +129,21 @@ public static class HeightmapMapBuilder
             data.size = new Vector3(sizeX, sizeY, sizeZ);
             data.SetHeights(0, 0, heights);
 
-            EditorUtility.DisplayProgressBar("Crear mapa", "Pintando pasto y roca", 0.55f);
-            PaintLayers(data, s);
+            EditorUtility.DisplayProgressBar("Crear mapa", "Pintando pasto, roca y tierra de los senderos", 0.55f);
+            int alphaRes = Mathf.Max(sizeX, sizeZ) > 1200f ? 2048 : 1024;
+            float[,] trailEdge = trails != null ? TrailTerrainCarver.EdgeDistance(trails, alphaRes, sizeX, sizeZ, ForestBand) : null;
+            PaintLayers(data, s, alphaRes, trailEdge);
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Plantando árboles", 0.7f);
-            int trees = ScatterTrees(data, s, null);
+            List<Vector2> openAreas = new List<Vector2>();
+            if (trails != null)
+            {
+                // Salida y meta despejadas (como el potrero de la salida en las fotos).
+                openAreas.Add(trails[0].Points[0]);
+                TrailTerrainCarver.Line last = trails[trails.Count - 1];
+                openAreas.Add(last.Points[last.Points.Length - 1]);
+            }
+            int trees = ScatterTrees(data, s, null, trailEdge, openAreas);
             AssetDatabase.CreateAsset(data, dataPath);
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Luz, cielo y cámara", 0.85f);
@@ -119,12 +153,13 @@ public static class HeightmapMapBuilder
             go.transform.position = new Vector3(-sizeX * 0.5f, 0f, -sizeZ * 0.5f);
             Terrain terrain = go.GetComponent<Terrain>();
             terrain.materialTemplate = VisualAssetFactory.TerrainMaterial("Terreno");
-            terrain.heightmapPixelError = 5f;
+            terrain.heightmapPixelError = 4f;
             terrain.basemapDistance = 400f;
             terrain.drawInstanced = true;
             terrain.treeDistance = 1000f;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
 
+            if (trails != null) BuildTrailObjects(terrain, trails);
             BuildEnvironment(s, sizeX, sizeY, sizeZ);
 
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
@@ -138,7 +173,8 @@ public static class HeightmapMapBuilder
             }
             Debug.Log("DownhillRace: mapa '" + s.MapName + "' creado en " + scenePath + " (" + sizeX.ToString("0") + " × " +
                       sizeZ.ToString("0") + " m, " + sizeY.ToString("0") + " m de desnivel, heightmap de " + bitDepth +
-                      " bits, " + trees + " árboles). No está en el juego: es solo para diseñar.");
+                      " bits, " + trees + " árboles" + (trails != null ? ", senderos del Turi Bike Park" : "") +
+                      "). No está en el juego: es solo para diseñar.");
         }
         catch (InvalidDataException e)
         {
@@ -185,55 +221,89 @@ public static class HeightmapMapBuilder
     {
         if (radius <= 0) return;
         int n = heights.GetLength(0);
-        float[] line = new float[n];
+        float[] line = new float[n], blurred = new float[n];
         for (int pass = 0; pass < 3; pass++)
         {
             for (int z = 0; z < n; z++)
             {
                 for (int x = 0; x < n; x++) line[x] = heights[z, x];
-                for (int x = 0; x < n; x++) heights[z, x] = BoxAverage(line, x, radius);
+                BoxBlurLine(line, blurred, radius);
+                for (int x = 0; x < n; x++) heights[z, x] = blurred[x];
             }
             for (int x = 0; x < n; x++)
             {
                 for (int z = 0; z < n; z++) line[z] = heights[z, x];
-                for (int z = 0; z < n; z++) heights[z, x] = BoxAverage(line, z, radius);
+                BoxBlurLine(line, blurred, radius);
+                for (int z = 0; z < n; z++) heights[z, x] = blurred[z];
             }
         }
     }
 
-    private static float BoxAverage(float[] line, int center, int radius)
+    /// <summary>Promedio móvil con suma acumulada: cuesta lo mismo con radio 2 que con radio 80.</summary>
+    private static void BoxBlurLine(float[] source, float[] result, int radius)
     {
+        int n = source.Length;
         // En los bordes se repite el último valor, para que la orilla del mapa no se hunda.
         float sum = 0f;
-        for (int k = -radius; k <= radius; k++) sum += line[Mathf.Clamp(center + k, 0, line.Length - 1)];
-        return sum / (radius * 2 + 1);
+        for (int k = -radius; k <= radius; k++) sum += source[Mathf.Clamp(k, 0, n - 1)];
+        float inverse = 1f / (radius * 2 + 1);
+        for (int i = 0; i < n; i++)
+        {
+            result[i] = sum * inverse;
+            sum += source[Mathf.Min(i + radius + 1, n - 1)] - source[Mathf.Max(i - radius, 0)];
+        }
+    }
+
+    /// <summary>
+    /// Resalta el relieve local: a cada punto se le suma su diferencia con el relieve de fondo.
+    /// Las quebradas quedan más hondas y las lomas más altas, así las bajadas se sienten más empinadas.
+    /// </summary>
+    private static void AccentRelief(float[,] heights, int radius, float amount)
+    {
+        if (radius <= 0) return;
+        float[,] background = (float[,])heights.Clone();
+        Smooth(background, radius);
+        int n = heights.GetLength(0);
+        for (int z = 0; z < n; z++)
+        {
+            for (int x = 0; x < n; x++) heights[z, x] += amount * (heights[z, x] - background[z, x]);
+        }
     }
 
     // =====================================================================
-    // Texturas: pasto, roca y tierra para los senderos
+    // Texturas: pasto, roca y tierra de los senderos
     // =====================================================================
 
-    private static void PaintLayers(TerrainData data, Settings s)
+    private static void PaintLayers(TerrainData data, Settings s, int alphaRes, float[,] trailEdge)
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         TerrainLayer grass = Layer(s.MapName + "_CapaPasto", dry ? "PastoSeco" : "Pasto", 8f);
         TerrainLayer rock = Layer(s.MapName + "_CapaRoca", dry ? "RocaSeca" : "Roca", 6f);
         TerrainLayer dirt = Layer(s.MapName + "_CapaTierra", dry ? "TierraSeca" : "Tierra", 4f);
-        // La tierra queda en 0: es la que se pinta a mano para marcar los senderos.
         data.terrainLayers = new[] { grass, rock, dirt };
 
-        // Más resolución en mapas grandes para que un sendero de 2-3 m se vea nítido.
-        int alphaRes = Mathf.Max(data.size.x, data.size.z) > 1200f ? 2048 : 1024;
+        // Más resolución en mapas grandes para que un sendero de 6 m se vea nítido.
         data.alphamapResolution = alphaRes;
         float[,,] alpha = new float[alphaRes, alphaRes, 3];
+        float texelX = data.size.x / (alphaRes - 1), texelZ = data.size.z / (alphaRes - 1);
         for (int y = 0; y < alphaRes; y++)
         {
             for (int x = 0; x < alphaRes; x++)
             {
                 float steep = data.GetSteepness(x / (float)(alphaRes - 1), y / (float)(alphaRes - 1));
                 float rockAmount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(30f, 45f, steep));
-                alpha[y, x, 0] = 1f - rockAmount;
-                alpha[y, x, 1] = rockAmount;
+                float trail = 0f, trailRock = 0f;
+                if (trailEdge != null && trailEdge[y, x] < 2f)
+                {
+                    // Borde irregular: el pasto se come un poco la orilla, como en un sendero real.
+                    float wobble = (Mathf.PerlinNoise(x * texelX * 0.15f, y * texelZ * 0.15f) - 0.5f) * 1.4f;
+                    trail = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.8f, 0.9f, trailEdge[y, x] + wobble));
+                    // En lo empinado del sendero asoma la roca (lajas, como en las fotos de la pista).
+                    trailRock = trail * 0.6f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, steep));
+                }
+                alpha[y, x, 0] = (1f - rockAmount) * (1f - trail);
+                alpha[y, x, 1] = rockAmount * (1f - trail) + trailRock;
+                alpha[y, x, 2] = trail - trailRock;
             }
         }
         data.SetAlphamaps(0, 0, alpha);
@@ -256,10 +326,11 @@ public static class HeightmapMapBuilder
     // =====================================================================
 
     /// <summary>
-    /// Reparte árboles y arbustos en manchas de bosque, sin ponerlos en lo muy empinado
-    /// ni sobre los senderos (si se pasan los pesos de la capa de tierra). Devuelve cuántos plantó.
+    /// Reparte árboles y arbustos en manchas de bosque, sin ponerlos en lo muy empinado ni sobre los senderos.
+    /// "dirt" (pesos de la capa de tierra) o "trailEdge" (distancia al sendero en m) marcan dónde no plantar;
+    /// con "trailEdge" además el bosque se espesa a los lados de las rutas. Devuelve cuántos plantó.
     /// </summary>
-    private static int ScatterTrees(TerrainData data, Settings s, float[,] trail)
+    private static int ScatterTrees(TerrainData data, Settings s, float[,] dirt, float[,] trailEdge, List<Vector2> openAreas)
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         List<GameObject> tall = new List<GameObject>(), broad = new List<GameObject>(), bushes = new List<GameObject>();
@@ -298,11 +369,20 @@ public static class HeightmapMapBuilder
             float u = (float)rng.NextDouble(), v = (float)rng.NextDouble();
             float steep = data.GetSteepness(u, v);
             if (steep > MaxTreeSlope) continue;
-            if (trail != null && OnTrail(trail, u, v, 2.5f / data.size.x * trail.GetLength(1))) continue;
+            if (dirt != null && OnTrail(dirt, u, v, 2.5f / data.size.x * dirt.GetLength(1))) continue;
+            Vector2 meters = new Vector2(u * data.size.x, v * data.size.z);
+            if (InOpenArea(openAreas, meters)) continue;
 
             // Manchas de bosque con claros entre ellas, más ralas al acercarse a lo empinado.
             float patch = Mathf.PerlinNoise(u * data.size.x * 0.006f + noiseOffset, v * data.size.z * 0.006f + noiseOffset);
             float chance = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.65f, patch)) * (1f - steep / MaxTreeSlope * 0.6f);
+            if (trailEdge != null)
+            {
+                float edge = Sample(trailEdge, u, v);
+                if (edge < TreeClearance) continue;
+                // Bosque cerrado a los lados del sendero, como en las fotos de la pista.
+                if (edge < ForestBand) chance = Mathf.Max(chance, 0.55f) * 2.2f;
+            }
             if (rng.NextDouble() > chance) continue;
 
             // En lo alto y abierto hay más arbustos; en el bosque, más árboles.
@@ -328,6 +408,22 @@ public static class HeightmapMapBuilder
         }
         data.SetTreeInstances(trees.ToArray(), true);
         return trees.Count;
+    }
+
+    private static bool InOpenArea(List<Vector2> openAreas, Vector2 meters)
+    {
+        if (openAreas == null) return false;
+        foreach (Vector2 center in openAreas)
+        {
+            if ((center - meters).sqrMagnitude < OpenAreaRadius * OpenAreaRadius) return true;
+        }
+        return false;
+    }
+
+    private static float Sample(float[,] grid, float u, float v)
+    {
+        int res = grid.GetLength(0);
+        return grid[Mathf.Clamp(Mathf.RoundToInt(v * (res - 1)), 0, res - 1), Mathf.Clamp(Mathf.RoundToInt(u * (res - 1)), 0, res - 1)];
     }
 
     /// <summary>Prefab de una planta para el terreno. Los árboles llevan collider (la bici choca); los arbustos no.</summary>
@@ -357,6 +453,62 @@ public static class HeightmapMapBuilder
     private static Material LoadMaterial(string name)
     {
         return AssetDatabase.LoadAssetAtPath<Material>(VisualAssetFactory.MaterialsFolder + "/" + name + ".mat");
+    }
+
+    // =====================================================================
+    // Rutas en la escena
+    // =====================================================================
+
+    /// <summary>
+    /// Un objeto por ruta (con su línea dibujada en la vista de escena) y marcas de salida y meta,
+    /// para ubicarse al poner rampas y puentes.
+    /// </summary>
+    private static void BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines)
+    {
+        Transform parent = new GameObject("Senderos").transform;
+        Vector3 origin = terrain.transform.position;
+        List<TuriBikeParkTrails.Segment> segments = TuriBikeParkTrails.Segments();
+        Vector3[] first = null;
+        foreach (TuriBikeParkTrails.Route route in TuriBikeParkTrails.Routes())
+        {
+            List<Vector2> flat = new List<Vector2>();
+            float width = 0f;
+            foreach (int index in route.Segments)
+            {
+                Vector2[] points = lines[index].Points;
+                for (int i = flat.Count > 0 ? 1 : 0; i < points.Length; i++) flat.Add(points[i]);
+                width = Mathf.Max(width, segments[index].HalfWidth * 2f);
+            }
+            Vector2[] sparse = TrailTerrainCarver.Resample(flat, 2f);
+            Vector3[] world = new Vector3[sparse.Length];
+            for (int i = 0; i < sparse.Length; i++)
+            {
+                Vector3 p = origin + new Vector3(sparse[i].x, 0f, sparse[i].y);
+                p.y = terrain.SampleHeight(p) + origin.y;
+                world[i] = p;
+            }
+            GameObject go = new GameObject("Ruta " + route.Name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<TrailPath>().Configure(route.Name, route.Color, width, world);
+            if (first == null) first = world;
+        }
+
+        if (first != null && first.Length > 1)
+        {
+            Marker("Salida", parent, first[0], first[1] - first[0]);
+            Marker("Meta", parent, first[first.Length - 1], first[first.Length - 1] - first[first.Length - 2]);
+        }
+    }
+
+    private static void Marker(string name, Transform parent, Vector3 position, Vector3 forward)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        forward.y = 0f;
+        go.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward.sqrMagnitude > 0.001f ? forward : Vector3.forward));
+        // Ícono visible en la vista de escena (los objetos vacíos no se ven).
+        Texture2D icon = EditorGUIUtility.IconContent(name == "Salida" ? "sv_label_3" : "sv_label_6").image as Texture2D;
+        if (icon != null) EditorGUIUtility.SetIconForObject(go, icon);
     }
 
     // =====================================================================
@@ -392,7 +544,7 @@ public static class HeightmapMapBuilder
     {
         TerrainData data = terrain.terrainData;
         Undo.RegisterCompleteObjectUndo(data, "Repartir árboles");
-        int count = ScatterTrees(data, s, TrailWeights(data));
+        int count = ScatterTrees(data, s, TrailWeights(data), null, null);
         EditorUtility.SetDirty(data);
         Debug.Log("DownhillRace: " + count + " árboles repartidos en '" + terrain.name + "'.");
     }
