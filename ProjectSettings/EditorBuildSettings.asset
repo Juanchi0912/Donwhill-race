@@ -12,11 +12,14 @@ EditorBuildSettings:
     path: Assets/Scenes/Pista01.unity
     guid: 9104d5eb3343eb9478b1b285b2080b95
   - enabled: 1
-    path: Assets/Scenes/Pista02.unity
-    guid: d2431a8c2ccfcb846bc559afaa6043ee
+    path: Assets/Scenes/LaPaz.unity
+    guid: 227cda78668644d459f7a4c5f6bb2872
   - enabled: 1
     path: Assets/Scenes/MapaReal.unity
     guid: 84e3825035d2609429b55074ca144ddf
+  - enabled: 1
+    path: Assets/Scenes/Pista02.unity
+    guid: d2431a8c2ccfcb846bc559afaa6043ee
   - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
