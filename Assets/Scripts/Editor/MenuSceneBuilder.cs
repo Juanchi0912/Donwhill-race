@@ -18,7 +18,7 @@ using PT = ProceduralTextures;
 /// </summary>
 public static class MenuSceneBuilder
 {
-    private const float ModeCardSpacing = 420f;
+    private const float ModeCardSpacing = 360f;   // Cinco tarjetas de modo caben en 1920 px.
 
     [MenuItem("DownhillRace/Crear escena del menú")]
     public static void CreateMenuScene()
@@ -119,6 +119,7 @@ public static class MenuSceneBuilder
         Button avalancha = ModeCard(modes, font, GameMode.Avalancha, "Próximamente", 1);
         Button carrera = ModeCard(modes, font, GameMode.Carrera, "Contrarreloj · 3 pistas", 2);
         Button freeride = ModeCard(modes, font, GameMode.Freeride, "Próximamente", 3);
+        Button bmx = ModeCard(modes, font, GameMode.BMX, "La Concordia · Cuenca", 4);
         Text message = UiBuilder.Label("Aviso", modes, font, "Próximamente", 40, new Vector2(0.5f, 0.5f), new Vector2(0f, -190f),
             UiBuilder.Gold, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         message.gameObject.SetActive(false);
@@ -175,6 +176,7 @@ public static class MenuSceneBuilder
         SetReference(controller, "avalanchaButton", avalancha);
         SetReference(controller, "carreraButton", carrera);
         SetReference(controller, "freerideButton", freeride);
+        SetReference(controller, "bmxButton", bmx);
         SetReference(controller, "modesBackButton", modesBack);
         SetReference(controller, "modesMessage", message);
         SetReference(controller, "tracksPanel", tracks.gameObject);
@@ -194,13 +196,13 @@ public static class MenuSceneBuilder
     /// <summary>Tarjeta de un modo de juego: nombre grande y una línea debajo.</summary>
     private static Button ModeCard(Transform parent, Font font, GameMode mode, string subtitle, int index)
     {
-        float x = (index - 1.5f) * ModeCardSpacing;
-        Button card = UiBuilder.Button("Modo" + mode, parent, font, string.Empty, 50, new Vector2(x, 20f), new Vector2(380f, 260f));
+        float x = (index - 2f) * ModeCardSpacing;
+        Button card = UiBuilder.Button("Modo" + mode, parent, font, string.Empty, 50, new Vector2(x, 20f), new Vector2(340f, 260f));
         bool available = GameSession.IsAvailable(mode);
         UiBuilder.Label("Nombre", card.transform, font, GameSession.DisplayName(mode).ToUpperInvariant(), 50, new Vector2(0.5f, 0.5f), new Vector2(0f, 35f),
-            UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, false, new Vector2(360f, 80f));
-        UiBuilder.Label("Detalle", card.transform, font, subtitle, 26, new Vector2(0.5f, 0.5f), new Vector2(0f, -45f),
-            available ? UiBuilder.Gold : new Color(1f, 1f, 1f, 0.55f), FontStyle.Italic, TextAnchor.MiddleCenter, false, new Vector2(360f, 50f));
+            UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, false, new Vector2(320f, 80f));
+        UiBuilder.Label("Detalle", card.transform, font, subtitle, 24, new Vector2(0.5f, 0.5f), new Vector2(0f, -45f),
+            available ? UiBuilder.Gold : new Color(1f, 1f, 1f, 0.55f), FontStyle.Italic, TextAnchor.MiddleCenter, false, new Vector2(320f, 50f));
         return card;
     }
 

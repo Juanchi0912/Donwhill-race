@@ -440,7 +440,7 @@ public static class HeightmapMapBuilder
     /// Textura del suelo del sendero: el color pedido con un poco de grano (ruido que se repite sin cortes),
     /// para que no se vea plástico. Se guarda como PNG junto a las demás texturas.
     /// </summary>
-    private static Texture2D TrailColorTexture(string mapName, Color color)
+    internal static Texture2D TrailColorTexture(string mapName, Color color)
     {
         const int size = 256;
         string path = VisualAssetFactory.TexturesFolder + "/" + mapName + "_Sendero.png";
@@ -545,7 +545,7 @@ public static class HeightmapMapBuilder
         return inside;
     }
 
-    private static TerrainLayer Layer(string name, string texture, float tileSize)
+    internal static TerrainLayer Layer(string name, string texture, float tileSize)
     {
         string folder = VisualAssetFactory.TexturesFolder + "/";
         Texture2D albedo = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + texture + ".png");
@@ -827,7 +827,7 @@ public static class HeightmapMapBuilder
         go.AddComponent<TrackBounds>().Configure(bike, warning, world);
     }
 
-    private static void Trigger(string name, Transform parent, Vector3[] route, int index, TrackTrigger.TriggerType type, int order, float width)
+    internal static void Trigger(string name, Transform parent, Vector3[] route, int index, TrackTrigger.TriggerType type, int order, float width)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);

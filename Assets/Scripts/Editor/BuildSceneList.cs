@@ -11,8 +11,9 @@ public static class BuildSceneList
     public const string RaceScenePath = "Assets/Scenes/Pista01.unity";
     public const string LaPazScenePath = "Assets/Scenes/LaPaz.unity";
     public const string TuriScenePath = "Assets/Scenes/MapaReal.unity";
+    public const string BmxScenePath = "Assets/Scenes/BMX_Concordia.unity";
 
-    private static readonly string[] PreferredOrder = { MenuScenePath, RaceScenePath, LaPazScenePath, TuriScenePath };
+    private static readonly string[] PreferredOrder = { MenuScenePath, RaceScenePath, LaPazScenePath, TuriScenePath, BmxScenePath };
 
     /// <summary>Agrega la escena (si falta) y reordena la lista.</summary>
     public static void Register(string path)

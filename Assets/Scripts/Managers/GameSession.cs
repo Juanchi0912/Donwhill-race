@@ -12,6 +12,8 @@ public static class GameSession
     public const string LaPazScene = "LaPaz";
     // El Turi Bike Park vive en la escena del mapa real (la misma donde se diseñan rampas y puentes).
     public const string TuriScene = "MapaReal";
+    // BMX Racing: pista La Concordia (Cuenca), creada con DownhillRace → Crear pista BMX: La Concordia.
+    public const string BmxScene = "BMX_Concordia";
 
     /// <summary>Escena de la pista elegida en el menú.</summary>
     public static string SelectedTrackScene { get; set; } = RaceScene;
@@ -31,7 +33,7 @@ public static class GameSession
     /// <summary>Por ahora solo Carrera se puede jugar.</summary>
     public static bool IsAvailable(GameMode mode)
     {
-        return mode == GameMode.Carrera;
+        return mode == GameMode.Carrera || mode == GameMode.BMX;
     }
 
     /// <summary>Nombre para mostrar en pantalla.</summary>
@@ -42,6 +44,7 @@ public static class GameSession
             case GameMode.Arcade: return "Arcade";
             case GameMode.Avalancha: return "Avalancha";
             case GameMode.Carrera: return "Carrera";
+            case GameMode.BMX: return "BMX";
             default: return "Freeride";
         }
     }

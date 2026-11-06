@@ -52,6 +52,7 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button avalanchaButton = null;
     [SerializeField] private Button carreraButton = null;
     [SerializeField] private Button freerideButton = null;
+    [SerializeField] private Button bmxButton = null;
     [SerializeField] private Button modesBackButton = null;
 
     [Header("Botones de pistas")]
@@ -93,6 +94,7 @@ public class MainMenuController : MonoBehaviour
         AddListener(avalanchaButton, () => ChooseMode(GameMode.Avalancha, avalanchaButton));
         AddListener(carreraButton, () => ChooseMode(GameMode.Carrera, carreraButton));
         AddListener(freerideButton, () => ChooseMode(GameMode.Freeride, freerideButton));
+        AddListener(bmxButton, () => ChooseMode(GameMode.BMX, bmxButton));
         AddListener(track1Button, () => StartTrack(GameSession.RaceScene));
         AddListener(track2Button, () => StartTrack(GameSession.LaPazScene));
         AddListener(track3Button, () => StartTrack(GameSession.TuriScene));
@@ -175,6 +177,12 @@ public class MainMenuController : MonoBehaviour
         }
 
         GameSession.SelectedMode = mode;
+        // BMX tiene una sola pista por ahora: va directo a ella.
+        if (mode == GameMode.BMX)
+        {
+            StartTrack(GameSession.BmxScene);
+            return;
+        }
         // Sin pantalla de pistas (escena del menú antigua), se corre directo la Pista 1.
         if (tracksPanel != null) Show(MenuScreen.Pistas);
         else StartTrack(GameSession.RaceScene);

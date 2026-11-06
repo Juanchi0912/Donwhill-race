@@ -7,5 +7,6 @@ public enum GameMode
     Arcade,
     Avalancha,
     Carrera,
-    Freeride
+    Freeride,
+    BMX
 }
