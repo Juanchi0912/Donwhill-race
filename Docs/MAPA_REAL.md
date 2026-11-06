@@ -6,13 +6,28 @@ no se agrega al juego ni al menú. Sirve para diseñar el lugar (senderos, árbo
 
 El heightmap actual es `Assets/Mapas/MapaReal_Alturas.png` (1024 × 1024, 8 bits).
 
+## Dónde es
+
+Ladera sur de **Cuenca (Azuay)**: de la **Circunvalación Sur** (arriba, lo más bajo, ~2 530 m) subiendo hacia
+**Turi** y el **Parque Ictocruz** (abajo, lo más alto, ~2 830 m). Pasa por San Isidro, Asunción, la Vía a Ictocruz,
+Chicapamba y San Antonio de Gapal.
+
+- **Tamaño:** cuadrado de **1,77 km** por lado (medido con las coordenadas de esos lugares en OpenStreetMap).
+- **Desnivel real:** unos 300–330 m.
+- **Orientación:** el norte queda arriba de la imagen. En Unity el norte es **+Z** (hacia el fondo) y el este es **+X**.
+- Se comprobó con elevaciones satelitales (SRTM 30 m): coinciden con el heightmap (correlación 0,93).
+
+**Guía para marcar senderos:** [`Docs/MapaReal_Guia.png`](MapaReal_Guia.png) — el mapa de calles con el relieve
+y una cuadrícula **A–H** (oeste → este) y **1–8** (norte → sur). Cada celda mide unos **221 m**.
+Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja por F4, llega a D8».
+
 ## 1. Crear el mapa
 
 1. En Unity: menú **DownhillRace → Crear mapa desde heightmap**.
 2. En la ventana:
    - **Heightmap (PNG)**: `MapaReal_Alturas.png` (ya viene puesto).
-   - **Ancho / Largo (m)**: lo que mide en la realidad el área que exportaste. La página de mapas lo muestra
-     al exportar. Si no lo sabes, deja 1500 m y ajústalo después hasta que las pendientes se vean naturales.
+   - **Ancho / Largo (m)**: lo que mide en la realidad el área que exportaste. Para este mapa: **1770 m**
+     (si la ventana muestra otro número de una prueba anterior, cámbialo a 1770).
    - **Desnivel total (m)**: del punto más bajo al más alto (si el archivo se llama `…_331m.png` se llena solo).
    - **Recorte**: si solo quieres una parte de la imagen, mueve los dos extremos de cada barra.
      Debajo dice cuánto medirá el mapa.
@@ -59,6 +74,7 @@ el sendero principal en pista de carrera (salida, checkpoints, meta) y agregarla
 | Archivo | Qué es |
 |---|---|
 | `Assets/Mapas/MapaReal_Alturas.png` | El heightmap original |
+| `Docs/MapaReal_Guia.png` | Mapa con relieve y cuadrícula para marcar senderos |
 | `Assets/Mapas/MapaReal_Terreno.asset` | El terreno con lo que pintes (alturas, texturas, árboles) |
 | `Assets/Scenes/MapaReal.unity` | La escena del mapa (no está en la lista de escenas del juego) |
 | `Assets/Prefabs/Vegetacion/` | Árboles y arbustos que usa el terreno |

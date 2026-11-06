@@ -27,8 +27,8 @@ public static class HeightmapMapBuilder
     {
         public string MapName = "MapaReal";
         public string HeightmapPath = MapsFolder + "/MapaReal_Alturas.png";
-        public float Width = 1500f;            // Ancho real de la imagen completa (oeste → este), en metros.
-        public float Length = 1500f;           // Largo real de la imagen completa (sur → norte), en metros.
+        public float Width = 1770f;            // Ancho real de la imagen completa (oeste → este), en metros. Turi–Ictocruz: 1,77 km.
+        public float Length = 1770f;           // Largo real de la imagen completa (sur → norte), en metros.
         public float HeightDifference = 331f;  // Del punto más bajo al más alto de la imagen completa.
         public Vector2 CropX = new Vector2(0f, 1f);
         public Vector2 CropZ = new Vector2(0f, 1f);
