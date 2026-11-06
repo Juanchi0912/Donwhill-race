@@ -34,6 +34,16 @@ public class TrackBounds : MonoBehaviour
         ShowWarning(false);
     }
 
+    private void Start()
+    {
+        // Si la salida misma queda fuera del límite, reaparecer no serviría (se repetiría sin parar): se apaga.
+        if (bike != null && polygon.Length >= 3 && !Contains(new Vector2(bike.transform.position.x, bike.transform.position.z)))
+        {
+            Debug.LogWarning("TrackBounds: la salida queda fuera del límite de pista; el límite se desactiva.", this);
+            enabled = false;
+        }
+    }
+
     private void Update()
     {
         if (bike == null || polygon.Length < 3) return;

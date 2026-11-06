@@ -724,7 +724,19 @@ public static class HeightmapMapBuilder
         ahead.y = 0f;
         BikeController bike = PrototypeSceneBuilder.AddRaceSetup(s.MapName, s.Ambience, start,
             Quaternion.LookRotation(ahead.sqrMagnitude > 0.001f ? ahead : Vector3.forward), -FallBelowTerrain, s.HotDay);
-        if (bounds != null) CreateBounds(bike, bounds, origin);
+        if (bounds != null)
+        {
+            // Si el borde deja fuera parte de la ruta (dibujo mal leído), no se pone: si no, la bici quedaría
+            // "fuera de pista" en plena ruta y reaparecería sin parar.
+            int outside = 0;
+            foreach (Vector3 p in main)
+            {
+                if (!InPolygon(bounds, new Vector2(p.x - origin.x, p.z - origin.z))) outside++;
+            }
+            if (outside <= main.Length / 50) CreateBounds(bike, bounds, origin);
+            else Debug.LogWarning("DownhillRace: el límite de pista deja fuera " + outside + " de " + main.Length +
+                                  " puntos de la ruta; no se puso. Revisa el borde en el trazado del mapa.");
+        }
 
         // Checkpoints por distancia: en los tramos compartidos coinciden, así que no se repiten.
         Transform group = new GameObject("Checkpoints").transform;
