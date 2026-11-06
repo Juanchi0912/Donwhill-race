@@ -7,7 +7,7 @@ using Segment = RealMapTrails.Segment;
 /// (recuadro de 4,12 km girado 8,8°; 1 265 m de desnivel). Trazada con la ruta que marcaste en Google Earth
 /// (Docs/LaPaz_Ruta_GoogleEarth.kml). Pista de Avalancha: la salida es ancha para que arranque el grupo,
 /// los zigzags son de uno solo (con tres líneas alternativas) y la cresta vuelve a ser ancha.
-/// Se recortó al primer tramo de la bajada larga para que dure unos 4 minutos; el resto de la ruta
+/// Se recortó al primer tramo de la bajada larga para que dure unos 4 minutos (meta tras el río rocoso); el resto de la ruta
 /// (bajada larga completa, zigzags de abajo y llegada al río) queda en el KML para usarlo después.
 /// Coordenadas en décimas de píxel del heightmap (0–20470), con el norte del recuadro arriba.
 /// </summary>
@@ -29,16 +29,29 @@ public static class LaPazTrails
         });
         set.Routes.Add(new RealMapTrails.Route { Name = "La Paz", Color = new Color(1f, 0.55f, 0.1f), Segments = new[] { Salida, Zigzags, Cresta } });
 
-        // Ambientación según los videos de la carrera: pueblo en la salida, ladera de pasto seco,
-        // matorral y pedregal en los zigzags, y la cresta abierta y rápida.
+        // Ambientación según los videos de la carrera: pueblo en la salida, matorral y pedregal en los zigzags.
+        // En las partes anchas, más árboles a los lados.
         set.Zones.Add(new RealMapTrails.Zone { Name = "Pueblo de la salida", Style = Decor.Pueblo, From = 0f, To = 230f });
-        set.Zones.Add(new RealMapTrails.Zone { Name = "Ladera de pasto seco", Style = Decor.LaderaAbierta, From = 230f, To = 557f });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Arboleda de la salida", Style = Decor.Arboleda, From = 230f, To = 557f });
         set.Zones.Add(new RealMapTrails.Zone { Name = "Matorral", Style = Decor.Matorral, From = 557f, To = 1050f });
         set.Zones.Add(new RealMapTrails.Zone { Name = "Pedregal", Style = Decor.Pedregal, From = 1050f, To = 1510f });
-        set.Zones.Add(new RealMapTrails.Zone { Name = "Cresta abierta", Style = Decor.LaderaAbierta, From = 1510f, To = 2837f });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Arboleda de la cresta", Style = Decor.Arboleda, From = 1510f, To = 2837f });
         set.Zones.Add(new RealMapTrails.Zone { Name = "Piedras de la cresta", Style = Decor.Pedregal, From = 2100f, To = 2350f });
+
+        // Zona verde de costa (círculo verde del dibujo): caña de azúcar, cacao y arbustos verdes.
+        set.Patches.Add(new RealMapTrails.Patch { Name = "Caña y cacao", Center = Point(14053, 12261), Radius = 60f });
+
+        // Río rocoso (línea azul del dibujo): cruza el sendero justo antes de la meta. 16 m de ancho.
+        set.Rivers.Add(new RealMapTrails.River { Name = "Río rocoso", HalfWidth = 8f, Image = Points(13162,12592, 13265,12470, 13560,12121, 13663,11999) });
+
+        // Límite de la pista (borde gris del dibujo): fuera de él, "¡FUERA DE PISTA!" y se reaparece.
+        set.Bounds = Points(15362,11328, 16004,11341, 16102,11425, 16172,11439, 16172,11537, 16200,11565, 16814,11565, 16814,11704, 16228,11704, 16214,12067, 16228,12123, 16367,12276, 16758,12430, 16939,12611, 17065,12849, 17135,13197, 17288,13504, 17372,13728, 17386,13867, 17414,13895, 18000,13895, 18014,13923, 17986,14035, 17470,14035, 17456,14007, 17414,14063, 17428,14412, 17400,14607, 17595,14914, 17902,15137, 18070,15193, 18949,15207, 19242,15137, 19702,15109, 19940,15249, 20023,15416, 20023,15737, 19981,15835, 19981,15947, 19940,15947, 19619,16268, 19605,16393, 19005,16393, 18935,16435, 18600,16435, 18293,16268, 17832,16114, 17651,16002, 17372,15947, 17288,15835, 17232,15528, 17163,15402, 16465,15402, 16451,15263, 17135,15249, 17051,15012, 16744,14760, 16618,14495, 16604,14328, 16674,14230, 16730,13825, 16576,13491, 16535,13323, 16381,13128, 16242,13016, 16032,12932, 15823,12723, 15697,12472, 15586,12346, 15558,12095, 15502,12067, 15348,12081, 15223,12332, 15265,12374, 15265,12514, 15237,12528, 14679,12528, 14260,12653, 14106,12835, 13772,12877, 13227,12737, 13088,12625, 12934,12430, 12878,12039, 12278,12025, 12278,11886, 12892,11886, 12906,11718, 12962,11662, 13325,11662, 13367,11732, 13367,11983, 13437,12039, 13534,12039, 13534,12081, 13478,12109, 13339,12067, 13311,11997, 13325,11802, 13283,11732, 12990,11732, 12962,11858, 12990,11886, 13144,11886, 13144,12025, 12962,12053, 12962,12304, 13046,12486, 13297,12695, 13841,12821, 14065,12779, 14204,12625, 14288,12583, 14441,12583, 14483,12528, 14469,12374, 15097,12374, 15223,12221, 15321,12011, 15544,12011, 15600,12039, 15641,12123, 15641,12304, 15753,12430, 15893,12695, 16046,12849, 16381,13030, 16576,13253, 16618,13421, 16786,13742, 16730,14258, 16660,14370, 16688,14509, 16842,14760, 16995,14844, 17107,14984, 17149,15151, 17190,15235, 17246,15263, 17246,15430, 17316,15570, 17316,15709, 17358,15821, 17470,15919, 17693,15947, 17930,16086, 18349,16212, 18516,16323, 18698,16365, 18767,16337, 18767,16240, 19479,16226, 19674,16100, 19786,15961, 19242,15961, 19284,15891, 19214,15877, 19214,15793, 19395,15807, 19423,15863, 19451,15793, 19493,15821, 19549,15779, 19912,15793, 19954,15709, 19926,15374, 19800,15249, 19688,15193, 19284,15193, 19102,15235, 19088,15277, 19577,15263, 19577,15416, 19200,15416, 19060,15374, 19019,15402, 18949,15374, 18879,15402, 18865,15277, 18028,15249, 17818,15165, 17567,14984, 17358,14691, 17372,14063, 17232,14021, 17232,13895, 17316,13895, 17330,13825, 17232,13546, 17079,13253, 16995,12863, 16883,12667, 16688,12472, 16367,12374, 16214,12249, 16158,12109, 16158,11746, 16130,11704, 15948,11704, 15962,11635, 15935,11621, 15935,11565, 16088,11565, 16116,11495, 16088,11467, 15935,11383, 15307,11397, 15014,11565, 14846,11621, 14581,11635, 14539,11676, 14037,11802, 13702,12067, 13576,12095, 13604,12039, 13730,11942, 13772,11942, 13841,11844, 14051,11732, 14330,11648, 14386,11593, 14818,11565, 15265,11341);
         return set;
     }
+
+    private static Vector2 Point(int x, int y) => Points(x, y)[0];
+
+    private static Vector2[] Points(params int[] xy) => RealMapTrails.Points(0f, 0f, 20470f, 20470f, xy);
 
     private static Segment Make(string name, float halfWidth, params int[] xy)
     {

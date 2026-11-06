@@ -30,7 +30,24 @@ public static class RealMapTrails
         Pueblo,          // Casas y postes a los lados.
         LaderaAbierta,   // Pasto seco y vista: sin árboles cerca, agaves sueltos.
         Matorral,        // Arbustos que cierran el sendero por los dos lados.
-        Pedregal         // Rocas en los bordes y algunas sueltas en el camino, agaves.
+        Pedregal,        // Rocas en los bordes y algunas sueltas en el camino, agaves.
+        Arboleda         // Más árboles a los dos lados (partes anchas).
+    }
+
+    /// <summary>Zona verde de costa (caña de azúcar, cacao, arbustos verdes): un círculo sobre el mapa.</summary>
+    public class Patch
+    {
+        public string Name;
+        public Vector2 Center;   // En la imagen (0–1), igual que los tramos.
+        public float Radius;     // Metros.
+    }
+
+    /// <summary>Río: cauce hundido con agua que corre, piedras y una zona que frena la bici.</summary>
+    public class River
+    {
+        public string Name;
+        public float HalfWidth;  // Metros.
+        public Vector2[] Image;  // Línea central en la imagen (0–1).
     }
 
     /// <summary>Zona de ambientación: de "From" a "To" metros a lo largo de la primera ruta.</summary>
@@ -48,6 +65,21 @@ public static class RealMapTrails
         public List<Segment> Segments = new List<Segment>();
         public List<Route> Routes = new List<Route>();
         public List<Zone> Zones = new List<Zone>();
+        public List<Patch> Patches = new List<Patch>();
+        public List<River> Rivers = new List<River>();
+        /// <summary>Límite de la pista en la imagen (0–1); null = sin límite. Fuera de él la bici reaparece.</summary>
+        public Vector2[] Bounds;
+    }
+
+    /// <summary>Puntos en píxeles de una imagen de referencia (recuadro del heightmap de (x0, y0) a (x1, y1)) a 0–1.</summary>
+    public static Vector2[] Points(float x0, float y0, float x1, float y1, params int[] xy)
+    {
+        Vector2[] points = new Vector2[xy.Length / 2];
+        for (int i = 0; i < points.Length; i++)
+        {
+            points[i] = new Vector2((xy[i * 2] - x0) / (x1 - x0), (xy[i * 2 + 1] - y0) / (y1 - y0));
+        }
+        return points;
     }
 
     /// <summary>
@@ -56,12 +88,7 @@ public static class RealMapTrails
     /// </summary>
     public static Segment Make(string name, float halfWidth, float x0, float y0, float x1, float y1, params int[] xy)
     {
-        Vector2[] points = new Vector2[xy.Length / 2];
-        for (int i = 0; i < points.Length; i++)
-        {
-            points[i] = new Vector2((xy[i * 2] - x0) / (x1 - x0), (xy[i * 2 + 1] - y0) / (y1 - y0));
-        }
-        return new Segment { Name = name, HalfWidth = halfWidth, Image = points };
+        return new Segment { Name = name, HalfWidth = halfWidth, Image = Points(x0, y0, x1, y1, xy) };
     }
 
     /// <summary>Cambia la subida máxima del tramo (por ejemplo 3 % en una salida de sprint).</summary>

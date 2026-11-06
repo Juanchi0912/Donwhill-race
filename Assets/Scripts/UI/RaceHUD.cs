@@ -146,9 +146,18 @@ public class RaceHUD : MonoBehaviour
         }
     }
 
+    private const string EnergyOffText = "ENERGÍA (APAGADA)";
+
     private void UpdateEnergy()
     {
         if (stamina == null) return;
+        if (!GameSession.EnergyEnabled)
+        {
+            // Energía apagada mientras se prueban las pistas: la barra queda llena y lo dice.
+            if (energyLabel != null && energyLabel.text != EnergyOffText) energyLabel.text = EnergyOffText;
+            if (energyFill != null) energyFill.anchorMax = Vector2.one;
+            return;
+        }
         float energy = stamina.Energy01;
         if (energyFill != null) energyFill.anchorMax = new Vector2(energy, 1f);
 

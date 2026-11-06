@@ -125,19 +125,54 @@ public static class PrototypeSceneBuilder
     /// la bici con su corredor en "start", cámara, luz, post-procesado y HUD. Lo usan los mapas reales
     /// (terreno desde heightmap), que ponen sus propios checkpoints y meta.
     /// </summary>
-    public static BikeController AddRaceSetup(string trackId, TrackLayout.Theme theme, Vector3 start, Quaternion rotation, float fallHeight)
+    public static BikeController AddRaceSetup(string trackId, TrackLayout.Theme theme, Vector3 start, Quaternion rotation, float fallHeight,
+        bool hotDay = false)
     {
         Palette palette = CreatePalette(theme);
+        if (hotDay) HotDaySky(palette);
         GameManager gameManager = new GameObject("GameManager").AddComponent<GameManager>();
         SetString(gameManager, "trackId", trackId);
         BikeController bike = BuildBikeAndRider(palette, start, rotation);
         SetFloat(bike, "fallHeight", fallHeight);
         BuildCamera(bike, palette);
         BuildLighting(palette);
+        if (hotDay) HotDaySun();
         BuildPostProcessing(trackId, palette);
         BuildUI(bike);
         ApplyPerformanceSettings();
         return bike;
+    }
+
+    /// <summary>Día caluroso: cielo claro y cálido, calima lejana (se ve lejos) en vez de niebla.</summary>
+    private static void HotDaySky(Palette p)
+    {
+        Texture2D sky = AssetDatabase.LoadAssetAtPath<Texture2D>(VisualAssetFactory.TexturesFolder + "/CieloValle.png");
+        if (sky != null)
+        {
+            p.Cielo = VisualAssetFactory.PanoramicSky("CieloDesierto", sky, 1.35f);
+            // 0,5 es neutro en el shader panorámico: un poco más de rojo y menos de azul = luz de calor.
+            p.Cielo.SetColor("_Tint", new Color(0.56f, 0.5f, 0.43f));
+            EditorUtility.SetDirty(p.Cielo);
+        }
+        p.FogColor = new Color(0.94f, 0.87f, 0.74f);
+        p.FogStart = 150f;
+        p.FogEnd = 1100f;
+    }
+
+    /// <summary>Sol alto y fuerte, sombras marcadas y luz ambiente cálida.</summary>
+    private static void HotDaySun()
+    {
+        Light sun = RenderSettings.sun;
+        if (sun != null)
+        {
+            sun.transform.rotation = Quaternion.Euler(62f, -25f, 0f);
+            sun.color = new Color(1f, 0.92f, 0.78f);
+            sun.intensity = 1.8f;
+            sun.shadowStrength = 0.85f;
+        }
+        RenderSettings.ambientSkyColor = new Color(0.78f, 0.76f, 0.72f);
+        RenderSettings.ambientEquatorColor = new Color(0.72f, 0.64f, 0.52f);
+        RenderSettings.ambientGroundColor = new Color(0.45f, 0.36f, 0.26f);
     }
 
     // =====================================================================

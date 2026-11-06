@@ -34,6 +34,7 @@ public static class RealMapDecor
                 case Decor.Matorral: Thicket(terrain, route, halfWidths, i0, i1, rng, kit, parent); break;
                 case Decor.Pedregal: RockField(terrain, route, halfWidths, i0, i1, rng, kit, parent); break;
                 case Decor.LaderaAbierta: OpenSlope(terrain, route, halfWidths, i0, i1, rng, kit, parent); break;
+                case Decor.Arboleda: Grove(terrain, route, halfWidths, i0, i1, rng); break;
             }
         }
         foreach (Transform t in root.GetComponentsInChildren<Transform>())
@@ -149,6 +150,223 @@ public static class RealMapDecor
         }
     }
 
+    /// <summary>Más árboles a los dos lados (partes anchas): árboles del terreno, con tronco que choca.</summary>
+    private static void Grove(Terrain terrain, Vector3[] route, float[] hw, int i0, int i1, System.Random rng)
+    {
+        TerrainData data = terrain.terrainData;
+        List<int> treeKinds = new List<int>();
+        TreePrototype[] prototypes = data.treePrototypes;
+        for (int k = 0; k < prototypes.Length; k++)
+        {
+            string name = prototypes[k].prefab != null ? prototypes[k].prefab.name : string.Empty;
+            if (name.StartsWith("Arbol") || name.StartsWith("Pino")) treeKinds.Add(k);
+        }
+        if (treeKinds.Count == 0) return;
+        Vector3 origin = terrain.transform.position;
+        List<TreeInstance> trees = new List<TreeInstance>(data.treeInstances);
+        for (int i = i0; i < i1; i += 2)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                if (rng.NextDouble() < 0.45) continue;
+                Vector3 position = Beside(terrain, route, i, side * (hw[i] + Range(rng, 3f, 18f)));
+                if (!ClearOfRoute(route, hw, position, i, 3f)) continue;
+                Vector3 local = position - origin;
+                float u = local.x / data.size.x, v = local.z / data.size.z;
+                if (u < 0f || u > 1f || v < 0f || v > 1f || data.GetSteepness(u, v) > 40f) continue;
+                float scale = Range(rng, 0.8f, 1.25f);
+                trees.Add(new TreeInstance
+                {
+                    prototypeIndex = treeKinds[rng.Next(treeKinds.Count)],
+                    position = new Vector3(u, 0f, v),
+                    widthScale = scale,
+                    heightScale = scale * Range(rng, 0.9f, 1.1f),
+                    rotation = Range(rng, 0f, Mathf.PI * 2f),
+                    color = Color.white,
+                    lightmapColor = Color.white
+                });
+            }
+        }
+        data.SetTreeInstances(trees.ToArray(), true);
+    }
+
+    // =====================================================================
+    // Zonas verdes de costa
+    // =====================================================================
+
+    /// <summary>
+    /// Zona verde de costa: matas de caña de azúcar en grupos, árboles chicos de cacao y arbustos verdes,
+    /// sin tapar el sendero ni el río. "center" está en el mundo; "radius" en metros.
+    /// </summary>
+    public static void CoastPatch(Terrain terrain, string name, Vector3 center, float radius, Vector3[] route, float[] hw,
+        List<Vector3[]> riverPoints, List<float> riverHalfWidths, int seed)
+    {
+        Kit kit = new Kit(false);
+        System.Random rng = new System.Random(seed * 53 + 11);
+        Transform parent = new GameObject(name).transform;
+        Transform root = GameObject.Find("Ambientacion") != null ? GameObject.Find("Ambientacion").transform : new GameObject("Ambientacion").transform;
+        parent.SetParent(root, false);
+        int count = Mathf.RoundToInt(Mathf.PI * radius * radius / 9f); // ~1 planta cada 9 m²
+        for (int n = 0; n < count; n++)
+        {
+            // Más denso al centro, se abre hacia el borde del círculo.
+            float r = radius * Mathf.Sqrt((float)rng.NextDouble()) * 1.05f;
+            float a = Range(rng, 0f, Mathf.PI * 2f);
+            Vector3 p = center + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+            p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
+            if (!ClearOfAll(route, hw, p, 1.2f) || InRiver(riverPoints, riverHalfWidths, p, 1.5f)) continue;
+            double pick = rng.NextDouble();
+            if (pick < 0.55 && kit.Canes.Count > 0)
+            {
+                // Caña de azúcar: varias matas juntas, altas.
+                for (int c = 0; c < 3; c++)
+                {
+                    Vector3 q = p + new Vector3(Range(rng, -0.8f, 0.8f), 0f, Range(rng, -0.8f, 0.8f));
+                    q.y = terrain.SampleHeight(q) + terrain.transform.position.y - 0.05f;
+                    Place("Cana", parent, kit.Canes[rng.Next(kit.Canes.Count)], q, RandomYaw(rng), Vector3.one * Range(rng, 1f, 1.4f), kit.CaneMat);
+                }
+            }
+            else if (pick < 0.8 && kit.Broadleaf.Count > 0)
+            {
+                // Cacao: árbol chico de hoja verde y brillante.
+                GameObject tree = Place("Cacao", parent, kit.Broadleaf[rng.Next(kit.Broadleaf.Count)], p - Vector3.up * 0.1f, RandomYaw(rng),
+                    Vector3.one * Range(rng, 0.45f, 0.62f), kit.Bark, kit.GreenLeaves);
+                CapsuleCollider trunk = tree.AddComponent<CapsuleCollider>();
+                trunk.radius = 0.25f;
+                trunk.height = 2f;
+                trunk.center = new Vector3(0f, 1f, 0f);
+            }
+            else if (kit.Bushes.Count > 0)
+            {
+                Place("ArbustoVerde", parent, kit.Bushes[rng.Next(kit.Bushes.Count)], p - Vector3.up * 0.05f, RandomYaw(rng),
+                    Vector3.one * Range(rng, 1f, 1.7f), kit.Bark, kit.GreenLeaves);
+            }
+        }
+        foreach (Transform t in parent.GetComponentsInChildren<Transform>())
+        {
+            GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+        }
+    }
+
+    // =====================================================================
+    // Río rocoso
+    // =====================================================================
+
+    /// <summary>
+    /// Agua que corre sobre el cauce ya tallado, rocas grandes en el cauce (con colisión), piedras chicas
+    /// donde cruza el sendero y una zona que frena la bici. "points" es la línea central en el mundo.
+    /// </summary>
+    public static void RockyRiver(Terrain terrain, string name, Vector3[] points, float halfWidth, Vector3[] route, float[] hw,
+        string meshPath, bool dry, int seed)
+    {
+        if (points.Length < 2) return;
+        Kit kit = new Kit(dry);
+        System.Random rng = new System.Random(seed * 71 + 5);
+        Transform parent = new GameObject(name).transform;
+        float waterOffset = 0.45f;
+
+        // --- Agua: una franja que sigue el cauce (puede ir en bajada, como un río de verdad).
+        int n = points.Length;
+        Vector3[] vertices = new Vector3[n * 2];
+        Vector2[] uvs = new Vector2[n * 2];
+        int[] triangles = new int[(n - 1) * 6];
+        float along = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            if (i > 0) along += Vector3.Distance(points[i - 1], points[i]);
+            Vector3 right = Vector3.Cross(Vector3.up, Flat(Forward(points, i))).normalized * halfWidth;
+            Vector3 c = points[i];
+            c.y = terrain.SampleHeight(c) + terrain.transform.position.y + waterOffset;
+            vertices[i * 2] = c - right;
+            vertices[i * 2 + 1] = c + right;
+            uvs[i * 2] = new Vector2(0f, along / 6f);
+            uvs[i * 2 + 1] = new Vector2(halfWidth * 2f / 6f, along / 6f);
+            if (i < n - 1)
+            {
+                int t = i * 6, v = i * 2;
+                triangles[t] = v; triangles[t + 1] = v + 2; triangles[t + 2] = v + 1;
+                triangles[t + 3] = v + 1; triangles[t + 4] = v + 2; triangles[t + 5] = v + 3;
+            }
+        }
+        Mesh mesh = new Mesh { name = name };
+        mesh.vertices = vertices;
+        mesh.uv = uvs;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        if (mesh.normals[0].y < 0f)
+        {
+            // Si quedó mirando hacia abajo se invierte el orden de los triángulos (si no, no se ve desde arriba).
+            for (int t = 0; t < triangles.Length; t += 3) (triangles[t + 1], triangles[t + 2]) = (triangles[t + 2], triangles[t + 1]);
+            mesh.triangles = triangles;
+            mesh.RecalculateNormals();
+        }
+        mesh.RecalculateBounds();
+        mesh = VisualAssetFactory.SaveMeshAsset(mesh, meshPath);
+        Material water = LoadMaterialStatic("Agua");
+        GameObject waterGo = Place("Agua", parent, mesh, Vector3.zero, Quaternion.identity, Vector3.one, water);
+        waterGo.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+        waterGo.AddComponent<WaterFlow>(); // Las ondas se desplazan: el agua corre.
+
+        // --- El agua frena (una sola zona, para que no se sume dos veces).
+        Vector3 a = vertices[0] * 0.5f + vertices[1] * 0.5f, b = vertices[n * 2 - 2] * 0.5f + vertices[n * 2 - 1] * 0.5f;
+        GameObject zone = new GameObject("ZonaAgua");
+        zone.transform.SetParent(parent, false);
+        zone.transform.SetPositionAndRotation((a + b) * 0.5f, Quaternion.LookRotation(Flat(b - a)));
+        BoxCollider box = zone.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = new Vector3(halfWidth * 2f, Mathf.Abs(b.y - a.y) + 4f, Vector3.Distance(a, b));
+        box.center = new Vector3(0f, 0.5f, 0f);
+        zone.AddComponent<SlowZone>().Configure(6f);
+
+        // --- Rocas: grandes en el cauce y las orillas; donde cruza el sendero solo piedras chicas.
+        if (kit.Rocks.Count == 0) return;
+        for (int k = 0; k < 70; k++)
+        {
+            int i = rng.Next(n);
+            float lateral = Range(rng, -halfWidth - 2f, halfWidth + 2f);
+            Vector3 right = Vector3.Cross(Vector3.up, Flat(Forward(points, i))).normalized;
+            Vector3 p = points[i] + right * lateral;
+            p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
+            bool onTrail = !ClearOfAll(route, hw, p, 1.5f);
+            float size = onTrail ? Range(rng, 0.2f, 0.4f) : Range(rng, 0.5f, 1.8f);
+            Rock(parent, kit, rng, p, size, !onTrail);
+        }
+        foreach (Transform t in parent.GetComponentsInChildren<Transform>())
+        {
+            GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+        }
+    }
+
+    private static Material LoadMaterialStatic(string name) => AssetDatabase.LoadAssetAtPath<Material>(VisualAssetFactory.MaterialsFolder + "/" + name + ".mat");
+
+    private static bool ClearOfAll(Vector3[] route, float[] hw, Vector3 p, float margin)
+    {
+        for (int j = 0; j < route.Length; j++)
+        {
+            Vector3 d = p - route[j];
+            d.y = 0f;
+            float limit = hw[j] + margin;
+            if (d.sqrMagnitude < limit * limit) return false;
+        }
+        return true;
+    }
+
+    private static bool InRiver(List<Vector3[]> rivers, List<float> halfWidths, Vector3 p, float margin)
+    {
+        if (rivers == null) return false;
+        for (int r = 0; r < rivers.Count; r++)
+        {
+            float limit = halfWidths[r] + margin;
+            foreach (Vector3 q in rivers[r])
+            {
+                Vector3 d = p - q;
+                d.y = 0f;
+                if (d.sqrMagnitude < limit * limit) return true;
+            }
+        }
+        return false;
+    }
+
     private static void Rock(Transform parent, Kit kit, System.Random rng, Vector3 position, float size, bool collider)
     {
         Mesh mesh = kit.Rocks[rng.Next(kit.Rocks.Count)];
@@ -225,8 +443,9 @@ public static class RealMapDecor
     private class Kit
     {
         public readonly List<Mesh> Houses = new List<Mesh>(), Bushes = new List<Mesh>(), Rocks = new List<Mesh>(), Agaves = new List<Mesh>();
+        public readonly List<Mesh> Canes = new List<Mesh>(), Broadleaf = new List<Mesh>();
         public readonly Mesh Pole;
-        public readonly Material Wall, Roof, Zinc, Window, PoleMat, Bark, Leaves, RockMat, AgaveMat;
+        public readonly Material Wall, Roof, Zinc, Window, PoleMat, Bark, Leaves, RockMat, AgaveMat, CaneMat, GreenLeaves;
 
         public Kit(bool dry)
         {
@@ -234,6 +453,10 @@ public static class RealMapDecor
             Load(Bushes, "Arbusto", 3);
             Load(Rocks, "Roca", 4);
             Load(Agaves, "Agave", 2);
+            Load(Canes, "Cana", 2);
+            Load(Broadleaf, "ArbolFrondoso", 2);
+            CaneMat = LoadMaterial("Cana");
+            GreenLeaves = LoadMaterial("HojasVerdes");
             Pole = LoadMesh("PosteLuz");
             Wall = LoadMaterial("CasaPared");
             Roof = LoadMaterial("CasaTeja");

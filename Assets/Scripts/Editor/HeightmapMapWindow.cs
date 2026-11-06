@@ -10,6 +10,8 @@ using UnityEngine;
 public class HeightmapMapWindow : EditorWindow
 {
     private const string PrefsKey = "DownhillRace.MapaDesdeHeightmap";
+    // Sube cuando cambian los valores recomendados: los guardados antes se descartan una vez.
+    private const int SettingsVersion = 2;
     private static readonly int[] Resolutions = { 513, 1025, 2049 };
     private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)" };
 
@@ -40,7 +42,8 @@ public class HeightmapMapWindow : EditorWindow
     {
         settings = Map.Defaults();
         string json = EditorPrefs.GetString(MapPrefsKey, string.Empty);
-        if (!string.IsNullOrEmpty(json)) JsonUtility.FromJsonOverwrite(json, settings);
+        bool current = EditorPrefs.GetInt(MapPrefsKey + ".Version", 0) >= SettingsVersion;
+        if (current && !string.IsNullOrEmpty(json)) JsonUtility.FromJsonOverwrite(json, settings);
         // El nombre de la escena lo fija el mapa: el menú del juego la carga por ese nombre.
         settings.MapName = Map.Defaults().MapName;
     }
@@ -53,6 +56,7 @@ public class HeightmapMapWindow : EditorWindow
     private void SaveSettings()
     {
         EditorPrefs.SetString(MapPrefsKey, JsonUtility.ToJson(settings));
+        EditorPrefs.SetInt(MapPrefsKey + ".Version", SettingsVersion);
         EditorPrefs.SetString(PrefsKey + ".Mapa", Map.Id);
     }
 
@@ -119,6 +123,8 @@ public class HeightmapMapWindow : EditorWindow
         settings.Ambience = (TrackLayout.Theme)EditorGUILayout.EnumPopup(new GUIContent("Ambiente", "Bosque nublado: pinos y pasto verde. Valle seco: árboles bajos y pasto seco."), settings.Ambience);
         settings.TreesPerHectare = EditorGUILayout.Slider(new GUIContent("Árboles por hectárea", "Una hectárea = 100 × 100 m. Muchos árboles en un mapa grande pueden bajar los FPS."), settings.TreesPerHectare, 0f, 120f);
         settings.Seed = EditorGUILayout.IntField(new GUIContent("Semilla", "Cambia el número para otra distribución de árboles."), settings.Seed);
+        settings.TrailColor = EditorGUILayout.TextField(new GUIContent("Color del sendero", "Color liso del suelo por donde pasa la bici, como #D2B48C. Vacío = textura de tierra."), settings.TrailColor);
+        settings.HotDay = EditorGUILayout.Toggle(new GUIContent("Día caluroso", "Sol fuerte y alto, cielo cálido y calima lejana en vez de niebla."), settings.HotDay);
         if (EditorGUI.EndChangeCheck()) SaveSettings();
 
         EditorGUILayout.Space();

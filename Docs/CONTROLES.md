@@ -43,6 +43,12 @@ Con mando, la bici vibra al **aterrizar** (más fuerte cuanto más tiempo en el 
 al **quedarse sin energía** y al **reaparecer**, más un temblor suave del terreno según la velocidad.
 Se ajusta en el componente **GamepadRumble** de la bici (`Bici`): **Strength** (0 = apagada) y **Terrain Feel**.
 
+## Energía (apagada por ahora)
+
+La energía para pedalear está **apagada** mientras se prueban las pistas largas: la barra queda llena y dice
+«ENERGÍA (APAGADA)». No se borró: para volver a activarla, en `Assets/Scripts/Managers/GameSession.cs`
+cambia `EnergyEnabled` a `true`.
+
 ## Cambiar los botones
 
 Todo el mapeo está en `Assets/Scripts/Managers/GameInput.cs`, en un solo lugar.

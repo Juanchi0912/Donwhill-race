@@ -29,7 +29,7 @@ public static class RealMapCatalog
     /// <summary>
     /// La Paz — Yunguilla (Santa Isabel): 4,12 km y 1 265 m de desnivel reales, heightmap de 16 bits.
     /// Desnivel ×1,5 y quebradas acentuadas para que la cresta y las bajadas sean más rápidas.
-    /// Valle seco con pocos árboles: el mapa es grande y así no pesa.
+    /// Recortado al borde de la pista, sendero color tierra clara (#D2B48C) y día caluroso, como en la carrera.
     /// </summary>
     private static HeightmapMapBuilder.Settings LaPazDefaults()
     {
@@ -44,8 +44,13 @@ public static class RealMapCatalog
             ReliefAccent = 0.35f,
             SmoothMeters = 4f,
             Ambience = TrackLayout.Theme.ValleSeco,
-            TreesPerHectare = 6f,
+            TreesPerHectare = 12f,
             Seed = 3,
+            // Recorte al borde gris del dibujo (con 50 m de margen): mucho más detalle que el mapa completo.
+            CropX = new UnityEngine.Vector2(0.588f, 0.990f),
+            CropZ = new UnityEngine.Vector2(0.185f, 0.459f),
+            TrailColor = "#D2B48C",
+            HotDay = true,
         };
     }
 }

@@ -18,6 +18,8 @@ public static class TrailTerrainCarver
     // Peso de los puntos fijos (cruces): obliga a que los tramos que se juntan empaten en altura.
     private const float PinWeight = 10000f;
     private const float JunctionBlend = 15f;     // Largo de la rampa que empata un tramo con su cruce (m).
+    private const float RiverSink = 1.2f;        // El cauce queda 1,2 m bajo el terreno de alrededor.
+    private const float RiverDepth = 0.8f;       // Y más hondo al centro: el agua junta en el medio.
 
     /// <summary>Línea central de un tramo, en metros desde la esquina suroeste del terreno (x = este, y = norte).</summary>
     public class Line
@@ -25,6 +27,8 @@ public static class TrailTerrainCarver
         public string Name;
         public float HalfWidth;
         public float MaxClimb;
+        public float Sink;               // Cuánto se hunde el centro bajo el terreno (cauce de un río).
+        public float Depth = RutDepth;   // Hondura de la sección de lado a lado.
         public Vector2[] Points;
         public float[] Heights;   // Altura del centro (m) después de tallar.
     }
@@ -35,18 +39,42 @@ public static class TrailTerrainCarver
         List<Line> lines = new List<Line>();
         foreach (RealMapTrails.Segment segment in segments)
         {
-            List<Vector2> points = new List<Vector2>();
-            foreach (Vector2 p in segment.Image)
-            {
-                float tu = (p.x - cropX.x) / Mathf.Max(0.01f, cropX.y - cropX.x);
-                float tz = ((1f - p.y) - cropZ.x) / Mathf.Max(0.01f, cropZ.y - cropZ.x);
-                points.Add(new Vector2(tu * sizeX, tz * sizeZ));
-            }
-            // Las esquinas del trazo se vuelven curvas (tres pasadas de Chaikin).
-            for (int pass = 0; pass < 3; pass++) points = Chaikin(points);
-            lines.Add(new Line { Name = segment.Name, HalfWidth = segment.HalfWidth, MaxClimb = segment.MaxClimb, Points = Resample(points, Spacing) });
+            lines.Add(new Line { Name = segment.Name, HalfWidth = segment.HalfWidth, MaxClimb = segment.MaxClimb,
+                Points = Smoothed(segment.Image, cropX, cropZ, sizeX, sizeZ) });
         }
         return lines;
+    }
+
+    /// <summary>
+    /// Ríos como líneas para tallar: el cauce va hundido bajo el terreno y bien cóncavo,
+    /// y no tiene límite de subida (el agua corre para cualquier lado del trazo).
+    /// </summary>
+    public static List<Line> BuildRiverLines(List<RealMapTrails.River> rivers, Vector2 cropX, Vector2 cropZ, float sizeX, float sizeZ)
+    {
+        List<Line> lines = new List<Line>();
+        foreach (RealMapTrails.River river in rivers)
+        {
+            lines.Add(new Line { Name = river.Name, HalfWidth = river.HalfWidth, MaxClimb = 100f, Sink = RiverSink, Depth = RiverDepth,
+                Points = Smoothed(river.Image, cropX, cropZ, sizeX, sizeZ) });
+        }
+        return lines;
+    }
+
+    /// <summary>Punto de la imagen (0–1, y desde el norte) a metros dentro del terreno recortado.</summary>
+    public static Vector2 ImageToLocal(Vector2 p, Vector2 cropX, Vector2 cropZ, float sizeX, float sizeZ)
+    {
+        float tu = (p.x - cropX.x) / Mathf.Max(0.01f, cropX.y - cropX.x);
+        float tz = ((1f - p.y) - cropZ.x) / Mathf.Max(0.01f, cropZ.y - cropZ.x);
+        return new Vector2(tu * sizeX, tz * sizeZ);
+    }
+
+    private static Vector2[] Smoothed(Vector2[] image, Vector2 cropX, Vector2 cropZ, float sizeX, float sizeZ)
+    {
+        List<Vector2> points = new List<Vector2>();
+        foreach (Vector2 p in image) points.Add(ImageToLocal(p, cropX, cropZ, sizeX, sizeZ));
+        // Las esquinas del trazo se vuelven curvas (tres pasadas de Chaikin).
+        for (int pass = 0; pass < 3; pass++) points = Chaikin(points);
+        return Resample(points, Spacing);
     }
 
     /// <summary>Talla todas las líneas en "heights" (en metros, [z, x], cubre sizeX × sizeZ).</summary>
@@ -65,7 +93,7 @@ public static class TrailTerrainCarver
             maxHalf = Mathf.Max(maxHalf, line.HalfWidth);
         }
 
-        Nearest(lines, res, sizeX, sizeZ, maxHalf + Shoulder, out float[,] edge, out float[,] center, out float[,] half);
+        Nearest(lines, res, sizeX, sizeZ, maxHalf + Shoulder, out float[,] edge, out float[,] center, out float[,] half, out float[,] depth);
         for (int z = 0; z < res; z++)
         {
             for (int x = 0; x < res; x++)
@@ -77,7 +105,7 @@ public static class TrailTerrainCarver
                 if (e <= 0f)
                 {
                     float across = (e + half[z, x]) / Mathf.Max(0.1f, half[z, x]);
-                    target -= RutDepth * (1f - across * across);
+                    target -= depth[z, x] * (1f - across * across);
                     weight = 1f;
                 }
                 else
@@ -95,7 +123,7 @@ public static class TrailTerrainCarver
     /// </summary>
     public static float[,] EdgeDistance(List<Line> lines, int res, float sizeX, float sizeZ, float reach)
     {
-        Nearest(lines, res, sizeX, sizeZ, reach, out float[,] edge, out _, out _);
+        Nearest(lines, res, sizeX, sizeZ, reach, out float[,] edge, out _, out _, out _);
         return edge;
     }
 
@@ -142,6 +170,10 @@ public static class TrailTerrainCarver
 
         if (start < 0) { junctions.Add(line.Points[0]); junctionHeights.Add(h[0]); }
         if (end < 0) { junctions.Add(line.Points[n - 1]); junctionHeights.Add(h[n - 1]); }
+        if (line.Sink > 0f)
+        {
+            for (int i = 0; i < n; i++) h[i] -= line.Sink;
+        }
         return h;
     }
 
@@ -209,11 +241,12 @@ public static class TrailTerrainCarver
 
     /// <summary>Para cada celda: distancia al borde del sendero más cercano, la altura de su centro y su medio ancho.</summary>
     private static void Nearest(List<Line> lines, int res, float sizeX, float sizeZ, float reach,
-        out float[,] edge, out float[,] center, out float[,] half)
+        out float[,] edge, out float[,] center, out float[,] half, out float[,] depth)
     {
         edge = new float[res, res];
         center = new float[res, res];
         half = new float[res, res];
+        depth = new float[res, res];
         for (int z = 0; z < res; z++)
         {
             for (int x = 0; x < res; x++) edge[z, x] = float.MaxValue;
@@ -238,6 +271,7 @@ public static class TrailTerrainCarver
                         edge[z, x] = e;
                         center[z, x] = line.Heights != null ? line.Heights[i] : 0f;
                         half[z, x] = line.HalfWidth;
+                        depth[z, x] = line.Depth;
                     }
                 }
             }

@@ -16,6 +16,12 @@ public static class GameSession
     /// <summary>Escena de la pista elegida en el menú.</summary>
     public static string SelectedTrackScene { get; set; } = RaceScene;
 
+    /// <summary>
+    /// Energía para pedalear (se gasta y hay que recuperarla). Apagada por ahora mientras se prueban
+    /// las pistas largas, donde se hacía lenta. Para volver a activarla, cambia a true.
+    /// </summary>
+    public static readonly bool EnergyEnabled = false;
+
     /// <summary>Modo elegido en el menú.</summary>
     public static GameMode SelectedMode { get; set; } = GameMode.Carrera;
 

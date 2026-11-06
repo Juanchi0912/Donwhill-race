@@ -143,19 +143,39 @@ Mapa: [`Docs/LaPaz_Ruta.png`](LaPaz_Ruta.png).
 
 | Parte | Metros | Ancho | Ambientación (de los videos) |
 |---|---|---|---|
-| Salida en el pueblo | 0 – 557 | **16 m** (arranca el grupo) | Casas, galpones y postes; luego ladera de pasto seco |
+| Salida en el pueblo | 0 – 557 | **16 m** (arranca el grupo) | Casas, galpones y postes; luego arboleda seca |
 | Zigzags | 557 – 1 510 | **5 m, de uno solo** | Matorral cerrado y después pedregal (rocas en los bordes, piedras sueltas, agaves) |
-| Cresta rápida | 1 510 – 2 837 | **14 m** | Cresta abierta con vista al valle; un tramo con piedras |
+| Cresta rápida | 1 510 – 2 837 | **14 m** | Arboleda seca a los lados, un tramo con piedras, zona de costa y el río rocoso antes de la meta |
 
 Las **3 líneas alternativas** que marcaste en los zigzags también se tallan (de uno solo, 4 m).
+
+**Lo que dibujaste sobre el mapa:**
+- **Borde gris → recorte y límite.** El terreno se recorta al rectángulo del borde (unos 1,65 × 1,13 km, con
+  50 m de margen): con la misma resolución sale con más del doble de detalle. El borde además es el
+  **límite de la pista**: si sales, aparece **«¡FUERA DE PISTA!»** con una cuenta de 3 s y reapareces en el
+  último checkpoint (objeto `LimiteDePista`, componente `TrackBounds`). Fuera del borde quedan pocos árboles.
+- **Línea azul → río rocoso** de 16 m de ancho que cruza el sendero justo antes de la meta: cauce hundido,
+  agua que corre (con salpicaduras), rocas grandes con colisión en el cauce y piedras chicas donde pasa el
+  sendero. El agua **frena** la bici.
+- **Círculo verde → zona de costa**: pasto verde, caña de azúcar, árboles chicos de cacao y arbustos verdes.
+  El resto del mapa es valle seco (árboles bajos y arbustos secos, agaves, pasto seco).
+
+**Suelo del sendero:** color liso **#D2B48C** (tierra clara) con un poco de grano, solo por donde pasa la bici.
+Se cambia en la ventana con **Color del sendero** (vacío = textura de tierra).
+
+**Día caluroso:** sol alto y fuerte, cielo cálido y calima lejana (se ve a más de 1 km) en vez de niebla.
+Se activa con **Día caluroso** en la ventana.
+
+**Más árboles en las partes anchas** (salida y cresta): árboles secos a los dos lados, con tronco que choca.
 
 Con **desnivel ×1,5** y quebradas acentuadas 0,35: **2,7 km**, baja **741 m** en el juego (476 m reales),
 pendiente media **27 %**, ~**3:55** de bajada según una simulación con la física de la bici.
 Las rocas del borde tienen colisión (sirven de rampa natural o hay que esquivarlas); las piedras sueltas
 dentro del sendero no.
 
-Valores recomendados: desnivel ×1,5, quebradas 0,35, suavizado 4 m, valle seco y 6 árboles por hectárea
-(el mapa es grande). Cuando la ruta esté lista se recorta lo que sobra, como en Turi, para ganar detalle.
+Valores recomendados: desnivel ×1,5, quebradas 0,35, suavizado 4 m, valle seco, 12 árboles por hectárea,
+recorte al borde, sendero #D2B48C y día caluroso. Si la ventana muestra valores viejos, clic en
+**Usar valores recomendados (La Paz — Yunguilla)**.
 
 Mientras no exista el modo Avalancha (salida en grupo con rivales), se juega en **Carrera → La Paz**
 como contrarreloj. La versión generada anterior (`Pista02`) ya no sale en el menú.
@@ -177,7 +197,8 @@ se arma en `Assets/Scripts/Editor/RealMapDecor.cs`.
 | `Assets/Mapas/LaPaz_Alturas.png` | Heightmap de La Paz (16 bits) |
 | `Docs/LaPaz_Ruta.png` | Mapa de la ruta de La Paz |
 | `Docs/LaPaz_Ruta_GoogleEarth.kml` | Tu ruta de Google Earth completa (con lo que quedó fuera del recorte) |
-| `Assets/Scripts/Editor/RealMapDecor.cs` | Ambientación por zonas: pueblo, matorral, pedregal, ladera abierta |
+| `Assets/Scripts/Editor/RealMapDecor.cs` | Ambientación: pueblo, matorral, pedregal, arboleda, zona de costa y río rocoso |
+| `Assets/Scripts/Track/TrackBounds.cs` | Límite de pista: «¡FUERA DE PISTA!» y reaparecer |
 | `Assets/Scripts/Editor/TrailTerrainCarver.cs` | Talla los senderos en el terreno sin aplanar la bajada |
 | `Assets/Scripts/Track/TrailPath.cs` | Componente de cada ruta en la escena (línea central) |
 | `Assets/Mapas/MapaReal_Terreno.asset` | El terreno con lo que pintes (alturas, texturas, árboles) |

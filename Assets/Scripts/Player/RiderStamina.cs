@@ -75,6 +75,14 @@ public class RiderStamina : MonoBehaviour
     public float Tick(float pedalIntensity, bool resting, float deltaTime)
     {
         IsPedaling = pedalIntensity > 0.01f;
+        if (!GameSession.EnergyEnabled)
+        {
+            // Energía apagada (pruebas): siempre llena y con toda la potencia.
+            Energy = maxEnergy;
+            IsExhausted = false;
+            PowerFactor = 1f;
+            return PowerFactor;
+        }
 
         if (IsPedaling && !IsExhausted)
         {
@@ -105,7 +113,7 @@ public class RiderStamina : MonoBehaviour
     /// <summary>Descuenta el costo de un salto (el salto siempre se permite).</summary>
     public void SpendJump()
     {
-        if (jumpCost <= 0f) return;
+        if (jumpCost <= 0f || !GameSession.EnergyEnabled) return;
         Energy = Mathf.Max(0f, Energy - jumpCost);
         timeSincePedal = 0f;
         UpdateExhaustion();
