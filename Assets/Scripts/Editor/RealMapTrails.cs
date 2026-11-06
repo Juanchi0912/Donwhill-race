@@ -31,7 +31,8 @@ public static class RealMapTrails
         LaderaAbierta,   // Pasto seco y vista: sin árboles cerca, agaves sueltos.
         Matorral,        // Arbustos que cierran el sendero por los dos lados.
         Pedregal,        // Rocas en los bordes y algunas sueltas en el camino, agaves.
-        Arboleda         // Más árboles a los dos lados (partes anchas).
+        Arboleda,        // Más árboles a los dos lados (partes anchas).
+        Cinta            // Cinta de carrera con postes: a los dos lados donde es angosto, y por fuera de las curvas.
     }
 
     /// <summary>Zona verde de costa (caña de azúcar, cacao, arbustos verdes): un círculo sobre el mapa.</summary>
@@ -56,6 +57,7 @@ public static class RealMapTrails
         public string Name;
         public Decor Style;
         public float From, To;
+        public bool BothSides;   // Cinta: a los dos lados aunque sea ancho (salida y llegada).
     }
 
     /// <summary>Todos los senderos de un mapa.</summary>

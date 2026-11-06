@@ -740,6 +740,32 @@ public static class ProceduralTextures
         return img;
     }
 
+    /// <summary>
+    /// Cinta de carrera (como las de los patrocinadores): fondo blanco con el texto en negro cursiva,
+    /// repetido dos veces a lo largo, y una línea fina de color arriba y abajo.
+    /// </summary>
+    public static Image CourseTape(int width, int height, string text)
+    {
+        Image img = new Image(width, height);
+        Rgb white = new Rgb(0.97f, 0.97f, 0.97f);
+        Rgb black = new Rgb(0.05f, 0.05f, 0.06f);
+        Rgb accent = new Rgb(0.95f, 0.45f, 0.08f);
+        int band = Math.Max(2, height / 12);
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            Rgb c = y < band || y >= height - band ? accent : white;
+            img.Set(x, y, c.R, c.G, c.B, 1f);
+        }
+        float textHeight = height * 0.62f;
+        float half = width * 0.5f;
+        for (int k = 0; k < 2; k++)
+        {
+            DrawText(img, text, half * k + width * 0.04f, (height - textHeight) * 0.5f, half - width * 0.08f, textHeight, black, white, 0.15f, false);
+        }
+        return img;
+    }
+
     // =====================================================================
     // Herramientas
     // =====================================================================

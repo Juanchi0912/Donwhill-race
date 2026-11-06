@@ -11,7 +11,7 @@ public class HeightmapMapWindow : EditorWindow
 {
     private const string PrefsKey = "DownhillRace.MapaDesdeHeightmap";
     // Sube cuando cambian los valores recomendados: los guardados antes se descartan una vez.
-    private const int SettingsVersion = 2;
+    private const int SettingsVersion = 3;
     private static readonly int[] Resolutions = { 513, 1025, 2049 };
     private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)" };
 
@@ -124,6 +124,7 @@ public class HeightmapMapWindow : EditorWindow
         settings.TreesPerHectare = EditorGUILayout.Slider(new GUIContent("Árboles por hectárea", "Una hectárea = 100 × 100 m. Muchos árboles en un mapa grande pueden bajar los FPS."), settings.TreesPerHectare, 0f, 120f);
         settings.Seed = EditorGUILayout.IntField(new GUIContent("Semilla", "Cambia el número para otra distribución de árboles."), settings.Seed);
         settings.TrailColor = EditorGUILayout.TextField(new GUIContent("Color del sendero", "Color liso del suelo por donde pasa la bici, como #D2B48C. Vacío = textura de tierra."), settings.TrailColor);
+        settings.GroundTint = EditorGUILayout.TextField(new GUIContent("Tono del pasto", "Tiñe el pasto de alrededor (multiplica), como #A8B47A para un oliva más oscuro. Vacío = como es."), settings.GroundTint);
         settings.HotDay = EditorGUILayout.Toggle(new GUIContent("Día caluroso", "Sol fuerte y alto, cielo cálido y calima lejana en vez de niebla."), settings.HotDay);
         if (EditorGUI.EndChangeCheck()) SaveSettings();
 

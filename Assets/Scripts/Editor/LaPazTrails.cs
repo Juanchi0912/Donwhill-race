@@ -38,6 +38,14 @@ public static class LaPazTrails
         set.Zones.Add(new RealMapTrails.Zone { Name = "Arboleda de la cresta", Style = Decor.Arboleda, From = 1510f, To = 2837f });
         set.Zones.Add(new RealMapTrails.Zone { Name = "Piedras de la cresta", Style = Decor.Pedregal, From = 2100f, To = 2350f });
 
+        // Cinta "DOWNHILL RACE": a los dos lados en la salida, los zigzags y la llegada; en la cresta ancha,
+        // por fuera de las curvas cerradas (donde uno se sale o se pierde).
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Cinta de la salida", Style = Decor.Cinta, From = 6f, To = 140f, BothSides = true });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Cinta de la ladera", Style = Decor.Cinta, From = 140f, To = 557f });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Cinta de los zigzags", Style = Decor.Cinta, From = 557f, To = 1510f });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Cinta de la cresta", Style = Decor.Cinta, From = 1510f, To = 2690f });
+        set.Zones.Add(new RealMapTrails.Zone { Name = "Cinta de la llegada", Style = Decor.Cinta, From = 2690f, To = 2830f, BothSides = true });
+
         // Zona verde de costa (círculo verde del dibujo): caña de azúcar, cacao y arbustos verdes.
         set.Patches.Add(new RealMapTrails.Patch { Name = "Caña y cacao", Center = Point(14053, 12261), Radius = 60f });
 

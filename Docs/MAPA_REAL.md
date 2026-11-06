@@ -161,7 +161,13 @@ Las **3 líneas alternativas** que marcaste en los zigzags también se tallan (d
   El resto del mapa es valle seco (árboles bajos y arbustos secos, agaves, pasto seco).
 
 **Suelo del sendero:** color liso **#D2B48C** (tierra clara) con un poco de grano, solo por donde pasa la bici.
-Se cambia en la ventana con **Color del sendero** (vacío = textura de tierra).
+Para que se distinga, el pasto seco de alrededor va **más oscuro y oliva** (**Tono del pasto** #A8B47A, que
+multiplica el color). Se cambian en la ventana con **Color del sendero** y **Tono del pasto** (vacío = como es).
+
+**Cinta de carrera «DOWNHILL RACE»** (fondo blanco, letras negras y una línea naranja arriba y abajo) con postes
+cada 4 m, donde uno se puede salir o perder: a los dos lados en la salida, los zigzags y la llegada, y en la
+cresta ancha por fuera de las curvas cerradas. No choca (solo marca la pista) y se corta donde salen las
+líneas alternativas y en el río. Las zonas de cinta están en `LaPazTrails.cs` (estilo `Cinta`).
 
 **Día caluroso:** sol alto y fuerte, cielo cálido y calima lejana (se ve a más de 1 km) en vez de niebla.
 Se activa con **Día caluroso** en la ventana.
@@ -174,7 +180,7 @@ Las rocas del borde tienen colisión (sirven de rampa natural o hay que esquivar
 dentro del sendero no.
 
 Valores recomendados: desnivel ×1,5, quebradas 0,35, suavizado 4 m, valle seco, 12 árboles por hectárea,
-recorte al borde, sendero #D2B48C y día caluroso. Si la ventana muestra valores viejos, clic en
+recorte al borde, sendero #D2B48C, pasto #A8B47A y día caluroso. Si la ventana muestra valores viejos, clic en
 **Usar valores recomendados (La Paz — Yunguilla)**.
 
 Mientras no exista el modo Avalancha (salida en grupo con rivales), se juega en **Carrera → La Paz**

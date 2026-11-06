@@ -16,12 +16,14 @@ public static class RealMapDecor
     /// <summary>
     /// "route" son los puntos de la línea central (cada 2 m) y "halfWidths" el medio ancho del sendero en cada uno.
     /// </summary>
-    public static void Build(Terrain terrain, Vector3[] route, float[] halfWidths, List<RealMapTrails.Zone> zones, bool dry, int seed)
+    public static void Build(Terrain terrain, Vector3[] route, float[] halfWidths, List<RealMapTrails.Zone> zones, bool dry, int seed,
+        List<Vector3[]> avoid = null, string assetPrefix = "Mapa")
     {
         if (zones == null || zones.Count == 0 || route.Length < 3) return;
         Kit kit = new Kit(dry);
         System.Random rng = new System.Random(seed * 31 + 7);
         Transform root = new GameObject("Ambientacion").transform;
+        int tapeCount = 0;
         foreach (RealMapTrails.Zone zone in zones)
         {
             Transform parent = new GameObject(zone.Name).transform;
@@ -35,6 +37,10 @@ public static class RealMapDecor
                 case Decor.Pedregal: RockField(terrain, route, halfWidths, i0, i1, rng, kit, parent); break;
                 case Decor.LaderaAbierta: OpenSlope(terrain, route, halfWidths, i0, i1, rng, kit, parent); break;
                 case Decor.Arboleda: Grove(terrain, route, halfWidths, i0, i1, rng); break;
+                case Decor.Cinta:
+                    Tape(terrain, route, halfWidths, i0, i1, zone.BothSides, avoid, kit, parent,
+                        VisualAssetFactory.ModelsFolder + "/" + assetPrefix + "_Cinta" + (++tapeCount) + ".asset");
+                    break;
             }
         }
         foreach (Transform t in root.GetComponentsInChildren<Transform>())
@@ -188,6 +194,136 @@ public static class RealMapDecor
             }
         }
         data.SetTreeInstances(trees.ToArray(), true);
+    }
+
+    // =====================================================================
+    // Cinta de carrera
+    // =====================================================================
+
+    private const float TapeOffset = 0.7f;      // Distancia de los postes al borde del sendero (m).
+    private const float TapeBottom = 0.78f, TapeTop = 0.94f;
+    private const float TapeRepeat = 3f;        // Cada 3 m se repite el texto.
+    private const float CurveRadius = 45f;      // En lo ancho, solo se acordona por fuera de curvas más cerradas que esto.
+
+    /// <summary>
+    /// Cinta "DOWNHILL RACE" con postes cada 4 m: a los dos lados donde el sendero es angosto (o si se pide),
+    /// y por fuera de las curvas cerradas en lo ancho, que es donde uno se sale o se pierde. No choca:
+    /// solo marca por dónde va la pista. Se corta donde salen las líneas alternativas y en el río.
+    /// </summary>
+    private static void Tape(Terrain terrain, Vector3[] route, float[] hw, int i0, int i1, bool bothSides, List<Vector3[]> avoid,
+        Kit kit, Transform parent, string meshPath)
+    {
+        if (kit.Tape == null) return;
+        List<Vector3> vertices = new List<Vector3>();
+        List<Vector2> uvs = new List<Vector2>();
+        List<int> tapeTris = new List<int>(), postTris = new List<int>();
+        for (int side = -1; side <= 1; side += 2)
+        {
+            List<Vector3> run = new List<Vector3>();
+            for (int i = i0; i <= i1; i += 2)
+            {
+                bool want = bothSides || hw[i] < 4f || OuterOfTightCurve(route, i, side);
+                Vector3 post = Beside(terrain, route, i, side * (hw[i] + TapeOffset));
+                bool ok = want && ClearOfRoute(route, hw, post, i, 0.4f) && !NearAny(avoid, post, 4f);
+                if (ok) run.Add(post);
+                else
+                {
+                    AddTapeRun(run, vertices, uvs, tapeTris, postTris);
+                    run.Clear();
+                }
+            }
+            AddTapeRun(run, vertices, uvs, tapeTris, postTris);
+        }
+        if (vertices.Count == 0) return;
+
+        Mesh mesh = new Mesh { name = System.IO.Path.GetFileNameWithoutExtension(meshPath) };
+        mesh.indexFormat = vertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+        mesh.SetVertices(vertices);
+        mesh.SetUVs(0, uvs);
+        mesh.subMeshCount = 2;
+        mesh.SetTriangles(tapeTris, 0);
+        mesh.SetTriangles(postTris, 1);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        mesh = VisualAssetFactory.SaveMeshAsset(mesh, meshPath);
+        GameObject go = Place("Cinta", parent, mesh, Vector3.zero, Quaternion.identity, Vector3.one, kit.Tape, kit.PostMat);
+        go.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+    }
+
+    /// <summary>Una tira de cinta entre postes seguidos, con sus postes.</summary>
+    private static void AddTapeRun(List<Vector3> run, List<Vector3> vertices, List<Vector2> uvs, List<int> tapeTris, List<int> postTris)
+    {
+        if (run.Count < 2) return;
+        int start = vertices.Count;
+        float along = 0f;
+        for (int k = 0; k < run.Count; k++)
+        {
+            if (k > 0) along += Vector3.Distance(run[k - 1], run[k]);
+            vertices.Add(run[k] + Vector3.up * TapeBottom);
+            vertices.Add(run[k] + Vector3.up * TapeTop);
+            uvs.Add(new Vector2(along / TapeRepeat, 0f));
+            uvs.Add(new Vector2(along / TapeRepeat, 1f));
+            if (k > 0)
+            {
+                int a = start + (k - 1) * 2;
+                tapeTris.AddRange(new[] { a, a + 1, a + 2, a + 2, a + 1, a + 3 });
+            }
+        }
+        foreach (Vector3 p in run) AddPost(p, vertices, uvs, postTris);
+    }
+
+    /// <summary>Poste fino de 1 m (caja de 4 cm).</summary>
+    private static void AddPost(Vector3 foot, List<Vector3> vertices, List<Vector2> uvs, List<int> tris)
+    {
+        const float r = 0.02f, h = 1.02f;
+        Vector3[] corners =
+        {
+            new Vector3(-r, 0f, -r), new Vector3(r, 0f, -r), new Vector3(r, 0f, r), new Vector3(-r, 0f, r),
+            new Vector3(-r, h, -r), new Vector3(r, h, -r), new Vector3(r, h, r), new Vector3(-r, h, r),
+        };
+        int[][] faces = { new[] { 0, 1, 5, 4 }, new[] { 1, 2, 6, 5 }, new[] { 2, 3, 7, 6 }, new[] { 3, 0, 4, 7 }, new[] { 4, 5, 6, 7 } };
+        foreach (int[] f in faces)
+        {
+            int b = vertices.Count;
+            foreach (int c in f)
+            {
+                vertices.Add(foot - Vector3.up * 0.15f + corners[c]);
+                uvs.Add(Vector2.zero);
+            }
+            // Caras hacia afuera: vistas desde fuera van en sentido horario.
+            tris.AddRange(new[] { b, b + 2, b + 1, b, b + 3, b + 2 });
+        }
+    }
+
+    /// <summary>True si "side" es el lado de afuera de una curva más cerrada que CurveRadius.</summary>
+    private static bool OuterOfTightCurve(Vector3[] route, int i, int side)
+    {
+        const int k = 6; // 12 m antes y después
+        if (i - k < 0 || i + k >= route.Length) return false;
+        Vector3 a = route[i - k], b = route[i], c = route[i + k];
+        Vector3 v1 = Flat(b - a), v2 = Flat(c - b);
+        float cross = v1.x * v2.z - v1.z * v2.x;
+        float ab = Vector3.Distance(a, b), bc = Vector3.Distance(b, c), ca = Vector3.Distance(c, a);
+        float area = Mathf.Abs((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)) * 0.5f;
+        float radius = area > 1e-4f ? ab * bc * ca / (4f * area) : float.MaxValue;
+        // Girando a la derecha (cross < 0) el lado de afuera es el izquierdo (-1), y al revés.
+        int outer = cross < 0f ? -1 : 1;
+        return radius < CurveRadius && side == outer;
+    }
+
+    private static bool NearAny(List<Vector3[]> lines, Vector3 p, float distance)
+    {
+        if (lines == null) return false;
+        foreach (Vector3[] line in lines)
+        {
+            foreach (Vector3 q in line)
+            {
+                Vector3 d = p - q;
+                d.y = 0f;
+                if (d.sqrMagnitude < distance * distance) return true;
+            }
+        }
+        return false;
     }
 
     // =====================================================================
@@ -445,7 +581,7 @@ public static class RealMapDecor
         public readonly List<Mesh> Houses = new List<Mesh>(), Bushes = new List<Mesh>(), Rocks = new List<Mesh>(), Agaves = new List<Mesh>();
         public readonly List<Mesh> Canes = new List<Mesh>(), Broadleaf = new List<Mesh>();
         public readonly Mesh Pole;
-        public readonly Material Wall, Roof, Zinc, Window, PoleMat, Bark, Leaves, RockMat, AgaveMat, CaneMat, GreenLeaves;
+        public readonly Material Wall, Roof, Zinc, Window, PoleMat, Bark, Leaves, RockMat, AgaveMat, CaneMat, GreenLeaves, Tape, PostMat;
 
         public Kit(bool dry)
         {
@@ -457,6 +593,8 @@ public static class RealMapDecor
             Load(Broadleaf, "ArbolFrondoso", 2);
             CaneMat = LoadMaterial("Cana");
             GreenLeaves = LoadMaterial("HojasVerdes");
+            PostMat = LoadMaterial("Blanco");
+            Tape = TapeMaterial();
             Pole = LoadMesh("PosteLuz");
             Wall = LoadMaterial("CasaPared");
             Roof = LoadMaterial("CasaTeja");
@@ -467,6 +605,14 @@ public static class RealMapDecor
             Leaves = LoadMaterial(dry ? "HojasSecas" : "Hojas");
             RockMat = LoadMaterial(dry ? "RocaSeca" : "Roca");
             AgaveMat = LoadMaterial("Agave");
+        }
+
+        /// <summary>Material de la cinta "DOWNHILL RACE" (se ve de los dos lados).</summary>
+        private static Material TapeMaterial()
+        {
+            Texture2D texture = VisualAssetFactory.SaveTexture(ProceduralTextures.CourseTape(1024, 96, "DOWNHILL RACE"), "CintaCarrera",
+                VisualAssetFactory.TextureKind.Color, 1024, 4);
+            return VisualAssetFactory.Cutout("CintaCarrera", texture, Color.white, 0.25f, true);
         }
 
         private static void Load(List<Mesh> list, string prefix, int count)

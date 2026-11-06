@@ -48,6 +48,7 @@ public static class HeightmapMapBuilder
         public bool AddTrails = true;          // Senderos del mapa (solo calzan con su propio heightmap).
         public bool Playable = true;           // Bici, cronómetro y checkpoints; se juega desde el menú Carrera.
         public string TrailColor = "";         // Color liso del suelo del sendero (#RRGGBB); vacío = textura de tierra.
+        public string GroundTint = "";         // Tiñe el pasto de alrededor (#RRGGBB, multiplica); vacío = como es.
         public bool HotDay;                    // Sol fuerte y cielo de desierto (día caluroso).
         public Vector2 CropX = new Vector2(0f, 1f);
         public Vector2 CropZ = new Vector2(0f, 1f);
@@ -200,7 +201,20 @@ public static class HeightmapMapBuilder
             if (routes != null && routes.Count > 0 && trailSet.Zones.Count > 0)
             {
                 EditorUtility.DisplayProgressBar("Crear mapa", "Ambientación: pueblo, matorral, pedregal", 0.93f);
-                RealMapDecor.Build(terrain, routes[0], routeWidths[0], trailSet.Zones, s.Ambience == TrackLayout.Theme.ValleSeco, s.Seed);
+                // La cinta se corta donde salen las líneas alternativas y donde pasa el río.
+                List<Vector3[]> avoid = new List<Vector3[]>();
+                Vector3 o = go.transform.position;
+                HashSet<int> inRoutes = new HashSet<int>();
+                foreach (RealMapTrails.Route r in trailSet.Routes) foreach (int k in r.Segments) inRoutes.Add(k);
+                for (int k = 0; k < trails.Count; k++)
+                {
+                    if (!inRoutes.Contains(k)) avoid.Add(System.Array.ConvertAll(trails[k].Points, p => o + new Vector3(p.x, 0f, p.y)));
+                }
+                if (rivers != null)
+                {
+                    foreach (TrailTerrainCarver.Line r in rivers) avoid.Add(System.Array.ConvertAll(r.Points, p => o + new Vector3(p.x, 0f, p.y)));
+                }
+                RealMapDecor.Build(terrain, routes[0], routeWidths[0], trailSet.Zones, s.Ambience == TrackLayout.Theme.ValleSeco, s.Seed, avoid, s.MapName);
             }
             if (routes != null && routes.Count > 0)
             {
@@ -346,6 +360,13 @@ public static class HeightmapMapBuilder
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         TerrainLayer grass = Layer(s.MapName + "_CapaPasto", dry ? "PastoSeco" : "Pasto", 8f);
+        if (!string.IsNullOrWhiteSpace(s.GroundTint) && ColorUtility.TryParseHtmlString(s.GroundTint.Trim(), out Color tint))
+        {
+            // Pasto teñido (más oscuro / oliva) para que el sendero de color claro se distinga bien.
+            Texture2D tinted = TintedTexture(dry ? "PastoSeco" : "Pasto", s.MapName + "_Pasto", tint);
+            if (tinted != null) grass.diffuseTexture = tinted;
+            EditorUtility.SetDirty(grass);
+        }
         TerrainLayer rock = Layer(s.MapName + "_CapaRoca", dry ? "RocaSeca" : "Roca", 6f);
         bool plainTrail = TryTrailColor(s, out Color trailColor);
         TerrainLayer dirt = plainTrail
@@ -439,6 +460,36 @@ public static class HeightmapMapBuilder
         }
         VisualAssetFactory.EnsureFolder(VisualAssetFactory.TexturesFolder);
         File.WriteAllBytes(Path.Combine(Directory.GetParent(Application.dataPath).FullName, path), texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer != null)
+        {
+            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.anisoLevel = 4;
+            importer.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    /// <summary>Copia de una textura multiplicada por un color (se guarda como PNG aparte; la original no cambia).</summary>
+    private static Texture2D TintedTexture(string source, string name, Color tint)
+    {
+        string folder = VisualAssetFactory.TexturesFolder + "/";
+        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+        string sourceFile = Path.Combine(projectRoot, folder + source + ".png");
+        if (!File.Exists(sourceFile)) return null;
+        Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        if (!texture.LoadImage(File.ReadAllBytes(sourceFile))) return null;
+        Color32[] pixels = texture.GetPixels32();
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            Color c = pixels[i];
+            pixels[i] = new Color(c.r * tint.r, c.g * tint.g, c.b * tint.b, c.a);
+        }
+        texture.SetPixels32(pixels);
+        string path = folder + name + ".png";
+        File.WriteAllBytes(Path.Combine(projectRoot, path), texture.EncodeToPNG());
         Object.DestroyImmediate(texture);
         AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
         TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;

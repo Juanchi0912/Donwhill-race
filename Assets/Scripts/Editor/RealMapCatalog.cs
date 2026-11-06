@@ -50,6 +50,8 @@ public static class RealMapCatalog
             CropX = new UnityEngine.Vector2(0.588f, 0.990f),
             CropZ = new UnityEngine.Vector2(0.185f, 0.459f),
             TrailColor = "#D2B48C",
+            // Pasto seco más oscuro y oliva: si no, el sendero claro se pierde en el pasto amarillo.
+            GroundTint = "#A8B47A",
             HotDay = true,
         };
     }
