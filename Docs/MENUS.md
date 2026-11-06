@@ -11,7 +11,7 @@ Presentación  →  Menú principal  →  Modos de juego  →  Elige la pista  �
 ```
 
 - **Elige la pista** (solo en Carrera): **Pista 1** (bosque nublado, escena `Pista01`),
-  **La Paz** (Yunguilla, Azuay, escena `Pista02`; en el juego nunca se muestra como "Pista 2") y
+  **La Paz** (Yunguilla, Azuay, mapa real, escena `LaPaz`; en el juego nunca se muestra como "Pista 2") y
   **Turi Bike Park** (mapa real de Cuenca, escena `MapaReal`, todavía sin rampas ni puentes).
 
 - **Presentación:** solo el nombre del juego. Aparece y se desvanece en unos 3 s;
@@ -33,10 +33,10 @@ Presentación  →  Menú principal  →  Modos de juego  →  Elige la pista  �
 ## Crear o reconstruir la escena
 
 Menú de Unity: **DownhillRace → Crear escena del menú**. Crea `Assets/Scenes/Menu.unity`
-y la deja primera en Build Settings (después van `Pista01`, `Pista02` y `MapaReal`). Para jugar el flujo completo,
+y la deja primera en Build Settings (después van `Pista01`, `LaPaz` y `MapaReal`). Para jugar el flujo completo,
 abre `Menu.unity` y presiona Play. Las pistas tienen que estar construidas antes
-(**Crear escena del prototipo**, **Crear escena: La Paz — Yunguilla** y, para el Turi Bike Park,
-**Crear mapa desde heightmap** con *Jugable* activado; ver [MAPA_REAL.md](MAPA_REAL.md)).
+(**Crear escena del prototipo**, y para La Paz y el Turi Bike Park **Crear mapa desde heightmap**
+eligiendo el mapa y con *Jugable* activado; ver [MAPA_REAL.md](MAPA_REAL.md)).
 
 ## Scripts
 

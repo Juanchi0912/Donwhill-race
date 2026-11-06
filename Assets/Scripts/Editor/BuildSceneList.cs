@@ -9,7 +9,7 @@ public static class BuildSceneList
 {
     public const string MenuScenePath = "Assets/Scenes/Menu.unity";
     public const string RaceScenePath = "Assets/Scenes/Pista01.unity";
-    public const string LaPazScenePath = "Assets/Scenes/Pista02.unity";
+    public const string LaPazScenePath = "Assets/Scenes/LaPaz.unity";
     public const string TuriScenePath = "Assets/Scenes/MapaReal.unity";
 
     private static readonly string[] PreferredOrder = { MenuScenePath, RaceScenePath, LaPazScenePath, TuriScenePath };

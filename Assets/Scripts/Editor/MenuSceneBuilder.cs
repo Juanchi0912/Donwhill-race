@@ -132,7 +132,7 @@ public static class MenuSceneBuilder
             UiBuilder.White, FontStyle.Bold, TextAnchor.MiddleCenter, true);
         Button track1 = TrackCard(tracks, font, "PISTA 1", "Bosque nublado  ·  0,55 km", new Vector2(-620f, 20f));
         // La segunda pista se presenta por su nombre ("La Paz"), nunca como "Pista 2".
-        Button track2 = TrackCard(tracks, font, "LA PAZ", "Yunguilla, Azuay  ·  1,3 km", new Vector2(0f, 20f));
+        Button track2 = TrackCard(tracks, font, "LA PAZ", "Yunguilla, Azuay  ·  5 km  ·  ancha", new Vector2(0f, 20f));
         // Mapa real de Cuenca; todavía en construcción (sin rampas ni puentes).
         Button track3 = TrackCard(tracks, font, "TURI BIKE PARK", "Cuenca  ·  1,6 km  ·  en construcción", new Vector2(620f, 20f));
         Button tracksBack = UiBuilder.Button("Volver", tracks, font, "VOLVER", 40, new Vector2(0f, -320f), new Vector2(360f, 84f));

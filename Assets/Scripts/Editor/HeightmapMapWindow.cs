@@ -3,9 +3,9 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Ventana para crear un mapa a escala real desde un heightmap y luego ayudar a decorarlo
-/// (quitar árboles de los senderos pintados, repartir árboles otra vez).
-/// Menú: DownhillRace → Crear mapa desde heightmap.
+/// Ventana para crear los mapas reales (Turi Bike Park, La Paz…) desde su heightmap y luego ayudar a
+/// decorarlos (quitar árboles de los senderos pintados, repartir árboles otra vez). Cada mapa guarda
+/// sus propios valores. Menú: DownhillRace → Crear mapa desde heightmap.
 /// </summary>
 public class HeightmapMapWindow : EditorWindow
 {
@@ -14,6 +14,7 @@ public class HeightmapMapWindow : EditorWindow
     private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)" };
 
     [SerializeField] private HeightmapMapBuilder.Settings settings = new HeightmapMapBuilder.Settings();
+    [SerializeField] private int mapIndex;
     [SerializeField] private float trailMargin = 1.5f;
     private Vector2 scroll;
 
@@ -23,10 +24,25 @@ public class HeightmapMapWindow : EditorWindow
         GetWindow<HeightmapMapWindow>("Mapa desde heightmap").minSize = new Vector2(380f, 520f);
     }
 
+    private RealMapCatalog.Entry Map => RealMapCatalog.All[Mathf.Clamp(mapIndex, 0, RealMapCatalog.All.Length - 1)];
+
+    // Turi conserva la clave de antes para no perder sus valores guardados.
+    private string MapPrefsKey => Map.Id == "turi" ? PrefsKey : PrefsKey + "." + Map.Id;
+
     private void OnEnable()
     {
-        string json = EditorPrefs.GetString(PrefsKey, string.Empty);
+        string id = EditorPrefs.GetString(PrefsKey + ".Mapa", RealMapCatalog.All[0].Id);
+        mapIndex = Mathf.Max(0, System.Array.FindIndex(RealMapCatalog.All, entry => entry.Id == id));
+        LoadSettings();
+    }
+
+    private void LoadSettings()
+    {
+        settings = Map.Defaults();
+        string json = EditorPrefs.GetString(MapPrefsKey, string.Empty);
         if (!string.IsNullOrEmpty(json)) JsonUtility.FromJsonOverwrite(json, settings);
+        // El nombre de la escena lo fija el mapa: el menú del juego la carga por ese nombre.
+        settings.MapName = Map.Defaults().MapName;
     }
 
     private void OnDisable()
@@ -36,26 +52,38 @@ public class HeightmapMapWindow : EditorWindow
 
     private void SaveSettings()
     {
-        EditorPrefs.SetString(PrefsKey, JsonUtility.ToJson(settings));
+        EditorPrefs.SetString(MapPrefsKey, JsonUtility.ToJson(settings));
+        EditorPrefs.SetString(PrefsKey + ".Mapa", Map.Id);
     }
 
     private void OnGUI()
     {
         scroll = EditorGUILayout.BeginScrollView(scroll);
-        EditorGUILayout.HelpBox("Crea un terreno a escala real desde un heightmap (imagen en gris: claro = alto). " +
-                                "Queda en una escena aparte: no se agrega al juego ni al menú.", MessageType.Info);
+        EditorGUILayout.HelpBox("Crea un mapa real a escala desde su heightmap (imagen en gris: claro = alto), " +
+                                "con sus senderos. Cada mapa tiene su propia escena.", MessageType.Info);
 
-        // La ventana recuerda los valores de la última vez: este botón vuelve a los del Turi Bike Park.
-        if (GUILayout.Button("Usar valores recomendados (Turi Bike Park)"))
+        string[] names = System.Array.ConvertAll(RealMapCatalog.All, entry => entry.DisplayName);
+        int picked = EditorGUILayout.Popup(new GUIContent("Mapa"), mapIndex, names);
+        if (picked != mapIndex)
         {
-            settings = new HeightmapMapBuilder.Settings();
+            SaveSettings();
+            mapIndex = picked;
+            LoadSettings();
+            SaveSettings();
+            GUI.FocusControl(null);
+        }
+        EditorGUILayout.LabelField("Escena", "Assets/Scenes/" + settings.MapName + ".unity");
+
+        // La ventana recuerda los valores de la última vez: este botón vuelve a los recomendados del mapa.
+        if (GUILayout.Button("Usar valores recomendados (" + Map.DisplayName + ")"))
+        {
+            settings = Map.Defaults();
             SaveSettings();
             GUI.FocusControl(null);
         }
 
         EditorGUI.BeginChangeCheck();
         DrawHeightmapField();
-        settings.MapName = EditorGUILayout.TextField(new GUIContent("Nombre del mapa", "Nombre de la escena y del terreno."), settings.MapName);
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Medidas reales de la imagen completa", EditorStyles.boldLabel);
@@ -68,10 +96,10 @@ public class HeightmapMapWindow : EditorWindow
         settings.ReliefExaggeration = EditorGUILayout.Slider(new GUIContent("Exagerar desnivel ×", "Multiplica la altura. Tal cual es la realidad, la bajada se siente suave en el juego."), settings.ReliefExaggeration, 1f, 2.5f);
         settings.ReliefAccent = EditorGUILayout.Slider(new GUIContent("Acentuar quebradas", "Hace más hondas las quebradas y más marcadas las lomas (0 = como el mapa)."), settings.ReliefAccent, 0f, 1f);
         EditorGUILayout.LabelField("Desnivel en el juego", "≈ " + (settings.HeightDifference * settings.ReliefExaggeration).ToString("0") + " m (más lo que sume el acento)");
-        settings.AddTrails = EditorGUILayout.Toggle(new GUIContent("Senderos Turi Bike Park", "Talla y pinta las 4 rutas del Turi Bike Park. Solo calzan con el heightmap de Turi – Ictocruz."), settings.AddTrails);
+        settings.AddTrails = EditorGUILayout.Toggle(new GUIContent("Senderos de " + Map.DisplayName, "Talla y pinta las rutas del mapa. Solo calzan con su propio heightmap."), settings.AddTrails);
         using (new EditorGUI.DisabledScope(!settings.AddTrails))
         {
-            settings.Playable = EditorGUILayout.Toggle(new GUIContent("Jugable (menú Carrera)", "Pone la bici en la salida, cronómetro, checkpoints y meta, y agrega la escena al menú: Carrera → Turi Bike Park."), settings.Playable);
+            settings.Playable = EditorGUILayout.Toggle(new GUIContent("Jugable (menú Carrera)", "Pone la bici en la salida, cronómetro, checkpoints y meta, y agrega la escena al menú del juego."), settings.Playable);
         }
 
         EditorGUILayout.Space();
@@ -97,7 +125,7 @@ public class HeightmapMapWindow : EditorWindow
         if (GUILayout.Button("Crear mapa", GUILayout.Height(34f)))
         {
             SaveSettings();
-            HeightmapMapBuilder.Build(settings);
+            HeightmapMapBuilder.Build(settings, Map.Trails());
             GUIUtility.ExitGUI();
         }
 

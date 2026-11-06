@@ -8,8 +8,9 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Convierte un heightmap (PNG exportado de una página de mapas) en un terreno de Unity a escala real,
-/// en una escena aparte que no entra al juego: relieve exagerado para que las bajadas se sientan extremas,
-/// los senderos del Turi Bike Park tallados y pintados, pasto, roca y bosque a los lados de las rutas.
+/// en su propia escena: relieve exagerado para que las bajadas se sientan extremas, los senderos del mapa
+/// (Turi Bike Park, La Paz…) tallados y pintados, pasto, roca y bosque a los lados de las rutas, y si es
+/// jugable, la bici, el cronómetro, los checkpoints y la meta.
 /// Se usa desde la ventana DownhillRace → Crear mapa desde heightmap.
 /// </summary>
 public static class HeightmapMapBuilder
@@ -43,7 +44,7 @@ public static class HeightmapMapBuilder
         public float HeightDifference = 331f;  // Del punto más bajo al más alto de la imagen completa.
         public float ReliefExaggeration = 1.6f; // Multiplica el desnivel: la bajada real se sentiría suave en el juego.
         public float ReliefAccent = 0.35f;     // Hace más hondas las quebradas y más marcadas las lomas.
-        public bool AddTrails = true;          // Senderos del Turi Bike Park (solo sirven con este heightmap).
+        public bool AddTrails = true;          // Senderos del mapa (solo calzan con su propio heightmap).
         public bool Playable = true;           // Bici, cronómetro y checkpoints; se juega desde el menú Carrera.
         public Vector2 CropX = new Vector2(0f, 1f);
         public Vector2 CropZ = new Vector2(0f, 1f);
@@ -61,8 +62,11 @@ public static class HeightmapMapBuilder
     // Crear el mapa
     // =====================================================================
 
-    /// <summary>Crea (o reemplaza) la escena Assets/Scenes/&lt;nombre&gt;.unity con el terreno del heightmap.</summary>
-    public static void Build(Settings s)
+    /// <summary>
+    /// Crea (o reemplaza) la escena Assets/Scenes/&lt;nombre&gt;.unity con el terreno del heightmap.
+    /// "trailSet" son los senderos del mapa (null = solo el terreno).
+    /// </summary>
+    public static void Build(Settings s, RealMapTrails.Set trailSet)
     {
         if (string.IsNullOrWhiteSpace(s.MapName) || s.MapName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
@@ -105,10 +109,10 @@ public static class HeightmapMapBuilder
             }
 
             List<TrailTerrainCarver.Line> trails = null;
-            if (s.AddTrails)
+            if (s.AddTrails && trailSet != null && trailSet.Segments.Count > 0)
             {
-                EditorUtility.DisplayProgressBar("Crear mapa", "Tallando los senderos del Turi Bike Park", 0.3f);
-                trails = TrailTerrainCarver.BuildLines(TuriBikeParkTrails.Segments(), s.CropX, s.CropZ, sizeX, sizeZ);
+                EditorUtility.DisplayProgressBar("Crear mapa", "Tallando los senderos de " + trailSet.MapName, 0.3f);
+                trails = TrailTerrainCarver.BuildLines(trailSet.Segments, s.CropX, s.CropZ, sizeX, sizeZ);
                 TrailTerrainCarver.Carve(heights, sizeX, sizeZ, trails);
             }
 
@@ -164,13 +168,13 @@ public static class HeightmapMapBuilder
             terrain.treeDistance = 1000f;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
 
-            List<Vector3[]> routes = trails != null ? BuildTrailObjects(terrain, trails) : null;
+            List<Vector3[]> routes = trails != null ? BuildTrailObjects(terrain, trails, trailSet) : null;
             bool playable = s.Playable && routes != null && routes.Count > 0;
             BikeController bike = null;
             if (playable)
             {
                 EditorUtility.DisplayProgressBar("Crear mapa", "Bici, cronómetro, checkpoints y meta", 0.9f);
-                bike = BuildRace(s, routes);
+                bike = BuildRace(s, routes, trailSet.MapName);
             }
             else
             {
@@ -190,8 +194,8 @@ public static class HeightmapMapBuilder
             }
             Debug.Log("DownhillRace: mapa '" + s.MapName + "' creado en " + scenePath + " (" + sizeX.ToString("0") + " × " +
                       sizeZ.ToString("0") + " m, " + sizeY.ToString("0") + " m de desnivel, heightmap de " + bitDepth +
-                      " bits, " + trees + " árboles" + (trails != null ? ", senderos del Turi Bike Park" : "") + "). " +
-                      (playable ? "Se juega desde el menú: Carrera → Turi Bike Park (o con Play en esta escena)." : "No está en el juego: es solo para diseñar."));
+                      " bits, " + trees + " árboles" + (trails != null ? ", senderos de " + trailSet.MapName : "") + "). " +
+                      (playable ? "Se juega desde el menú: Carrera → " + trailSet.MapName + " (o con Play en esta escena)." : "No está en el juego: es solo para diseñar."));
         }
         catch (InvalidDataException e)
         {
@@ -480,14 +484,14 @@ public static class HeightmapMapBuilder
     /// Un objeto por ruta (con su línea dibujada en la vista de escena) y marcas de salida y meta,
     /// para ubicarse al poner rampas y puentes.
     /// </summary>
-    private static List<Vector3[]> BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines)
+    private static List<Vector3[]> BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines, RealMapTrails.Set set)
     {
         List<Vector3[]> routes = new List<Vector3[]>();
         Transform parent = new GameObject("Senderos").transform;
         Vector3 origin = terrain.transform.position;
-        List<TuriBikeParkTrails.Segment> segments = TuriBikeParkTrails.Segments();
+        List<RealMapTrails.Segment> segments = set.Segments;
         Vector3[] first = null;
-        foreach (TuriBikeParkTrails.Route route in TuriBikeParkTrails.Routes())
+        foreach (RealMapTrails.Route route in set.Routes)
         {
             List<Vector2> flat = new List<Vector2>();
             float width = 0f;
@@ -528,7 +532,7 @@ public static class HeightmapMapBuilder
     /// Bici en la salida, GameManager, cámara, luz y HUD (los mismos de las otras pistas),
     /// checkpoints a lo largo de cada ruta para reaparecer, y la meta que detiene el cronómetro.
     /// </summary>
-    private static BikeController BuildRace(Settings s, List<Vector3[]> routes)
+    private static BikeController BuildRace(Settings s, List<Vector3[]> routes, string mapName)
     {
         Vector3[] main = routes[0];
         int startIndex = PointAtDistance(main, StartOffset);
@@ -556,7 +560,7 @@ public static class HeightmapMapBuilder
         }
         // Meta común unos metros antes del final, ancha para que entren todas las rutas.
         Trigger("Meta", group, main, PointAtDistance(main, RouteLength(main) - 8f), TrackTrigger.TriggerType.Meta, 0, 18f);
-        Debug.Log("DownhillRace: " + created + " checkpoints y la meta en el Turi Bike Park.");
+        Debug.Log("DownhillRace: " + created + " checkpoints y la meta en " + mapName + ".");
         return bike;
     }
 

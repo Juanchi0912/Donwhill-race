@@ -1,5 +1,9 @@
 # Mapa real desde un heightmap
 
+Hay dos mapas reales: el **Turi Bike Park** (Cuenca, escena `MapaReal`) y **La Paz — Yunguilla**
+(Santa Isabel, escena `LaPaz`, ver [abajo](#la-paz--yunguilla)). En la ventana se elige con **Mapa**;
+cada uno guarda sus propios valores y su propia escena, así crear uno no borra el otro.
+
 Convierte un **heightmap** (imagen en gris exportada de una página de mapas: claro = alto, oscuro = bajo)
 en un terreno de Unity **a escala real**. El mapa queda en una **escena aparte** (`Assets/Scenes/MapaReal.unity`):
 no se agrega al juego ni al menú. Sirve para diseñar el lugar (senderos, árboles) antes de convertirlo en pista.
@@ -24,7 +28,8 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
 ## 1. Crear el mapa
 
 1. En Unity: menú **DownhillRace → Crear mapa desde heightmap**.
-2. En la ventana:
+2. Arriba, en **Mapa**, elige cuál crear y haz clic en **Usar valores recomendados** si cambiaste algo antes.
+3. En la ventana:
    - **Heightmap (PNG)**: `MapaReal_Alturas.png` (ya viene puesto).
    - **Ancho / Largo (m)**: lo que mide en la realidad el área que exportaste. Para este mapa: **1770 m**
      (si la ventana muestra otro número de una prueba anterior, cámbialo a 1770).
@@ -120,6 +125,31 @@ completa y borra lo que hayas agregado, así que una vez que empieces a poner ra
 Falta: fuera del sendero no frena el pasto (solo en las pistas generadas), no hay arco de salida ni de meta,
 y el modo **Avalancha** (salida en grupo) viene después.
 
+## La Paz — Yunguilla
+
+Mapa real de Yunguilla (parroquia La Paz, Santa Isabel), desde `Assets/Mapas/LaPaz_Alturas.png`:
+heightmap de **16 bits** (sale liso, sin escalones), recuadro de **4,12 km** por lado **girado 8,8°**
+respecto al norte, **1 265 m** de desnivel. Se ubicó con tus coordenadas de salida y meta y elevaciones
+satelitales (coincidencia 0,9999).
+
+- **Salida:** -3.34744, -79.26852 (2 196 m), abajo a la derecha del heightmap.
+- **Meta:** -3.31872, -79.29635 (1 004 m), arriba a la izquierda.
+
+**Primer trazado** (automático, la bajada más natural del cerro; se afinará con la ruta real por partes):
+**4,7 km**, baja **1 193 m**, pendiente media **25 %**, ~1,1 km de tramos de más de 40 %, casi sin subidas.
+Baja por la loma larga hacia el valle del noroeste. Es una pista de **Avalancha**: **14 m** de ancho casi
+todo el recorrido (3 o 4 corredores juntos) y dos **cuellos de botella de 8 m** (*Cuello de la quebrada*
+y *Cuello del pueblo*). Mapa: [`Docs/LaPaz_Ruta.png`](LaPaz_Ruta.png).
+
+Valores recomendados: sin exagerar el desnivel (×1, ya baja casi 1 200 m), quebradas acentuadas 0,3,
+suavizado 4 m, valle seco y 6 árboles por hectárea (el mapa es grande). Cuando la ruta esté lista se
+recorta lo que sobra, como en Turi, para ganar detalle.
+
+Mientras no exista el modo Avalancha (salida en grupo con rivales), se juega en **Carrera → La Paz**
+como contrarreloj. La versión generada anterior (`Pista02`) ya no sale en el menú.
+
+El trazado está en `Assets/Scripts/Editor/LaPazTrails.cs` (píxeles del heightmap, 2048 × 2048).
+
 ## Archivos
 
 | Archivo | Qué es |
@@ -127,7 +157,12 @@ y el modo **Avalancha** (salida en grupo) viene después.
 | `Assets/Mapas/MapaReal_Alturas.png` | El heightmap original |
 | `Docs/MapaReal_Guia.png` | Mapa con relieve y cuadrícula para marcar senderos |
 | `Docs/TuriBikePark_Rutas.png` | Las 4 rutas del Turi Bike Park sobre la guía |
-| `Assets/Scripts/Editor/TuriBikeParkTrails.cs` | Trazado de las rutas (puntos sobre el mapa) |
+| `Assets/Scripts/Editor/TuriBikeParkTrails.cs` | Trazado de las rutas de Turi (puntos sobre el mapa) |
+| `Assets/Scripts/Editor/LaPazTrails.cs` | Trazado de La Paz (píxeles del heightmap) |
+| `Assets/Scripts/Editor/RealMapCatalog.cs` | Los mapas reales y sus valores recomendados |
+| `Assets/Scripts/Editor/RealMapTrails.cs` | Tramos y rutas de un mapa (datos comunes) |
+| `Assets/Mapas/LaPaz_Alturas.png` | Heightmap de La Paz (16 bits) |
+| `Docs/LaPaz_Ruta.png` | Mapa de la ruta de La Paz |
 | `Assets/Scripts/Editor/TrailTerrainCarver.cs` | Talla los senderos en el terreno sin aplanar la bajada |
 | `Assets/Scripts/Track/TrailPath.cs` | Componente de cada ruta en la escena (línea central) |
 | `Assets/Mapas/MapaReal_Terreno.asset` | El terreno con lo que pintes (alturas, texturas, árboles) |

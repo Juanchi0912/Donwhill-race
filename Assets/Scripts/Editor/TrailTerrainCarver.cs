@@ -30,10 +30,10 @@ public static class TrailTerrainCarver
     }
 
     /// <summary>Pasa los tramos (coordenadas de imagen) al terreno recortado, redondea las esquinas y remuestrea.</summary>
-    public static List<Line> BuildLines(List<TuriBikeParkTrails.Segment> segments, Vector2 cropX, Vector2 cropZ, float sizeX, float sizeZ)
+    public static List<Line> BuildLines(List<RealMapTrails.Segment> segments, Vector2 cropX, Vector2 cropZ, float sizeX, float sizeZ)
     {
         List<Line> lines = new List<Line>();
-        foreach (TuriBikeParkTrails.Segment segment in segments)
+        foreach (RealMapTrails.Segment segment in segments)
         {
             List<Vector2> points = new List<Vector2>();
             foreach (Vector2 p in segment.Image)

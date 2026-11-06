@@ -1,0 +1,55 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>
+/// Senderos de un mapa real: los tramos que se tallan en el terreno y las rutas (de la salida a la meta)
+/// que se arman con esos tramos. Cada mapa (Turi, La Paz…) arma su propio conjunto.
+/// </summary>
+public static class RealMapTrails
+{
+    /// <summary>Tramo de sendero que se talla en el terreno.</summary>
+    public class Segment
+    {
+        public string Name;
+        public float HalfWidth;          // Medio ancho en metros.
+        public float MaxClimb = 0.08f;   // Subida máxima (8 % = se sube pedaleando).
+        public Vector2[] Image;          // Puntos en la imagen: x de 0 (oeste) a 1 (este), y de 0 (norte) a 1 (sur).
+    }
+
+    /// <summary>Ruta completa de salida a meta, armada con tramos (índices de Set.Segments).</summary>
+    public class Route
+    {
+        public string Name;
+        public Color Color;
+        public int[] Segments;
+    }
+
+    /// <summary>Todos los senderos de un mapa.</summary>
+    public class Set
+    {
+        public string MapName;
+        public List<Segment> Segments = new List<Segment>();
+        public List<Route> Routes = new List<Route>();
+    }
+
+    /// <summary>
+    /// Tramo con puntos en píxeles de una imagen de referencia, donde el heightmap completo
+    /// ocupa el recuadro de (x0, y0) a (x1, y1).
+    /// </summary>
+    public static Segment Make(string name, float halfWidth, float x0, float y0, float x1, float y1, params int[] xy)
+    {
+        Vector2[] points = new Vector2[xy.Length / 2];
+        for (int i = 0; i < points.Length; i++)
+        {
+            points[i] = new Vector2((xy[i * 2] - x0) / (x1 - x0), (xy[i * 2 + 1] - y0) / (y1 - y0));
+        }
+        return new Segment { Name = name, HalfWidth = halfWidth, Image = points };
+    }
+
+    /// <summary>Cambia la subida máxima del tramo (por ejemplo 3 % en una salida de sprint).</summary>
+    public static Segment Climb(this Segment segment, float maxClimb)
+    {
+        segment.MaxClimb = maxClimb;
+        return segment;
+    }
+}

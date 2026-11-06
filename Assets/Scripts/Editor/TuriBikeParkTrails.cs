@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using UnityEngine;
+using Segment = RealMapTrails.Segment;
 
 /// <summary>
 /// Senderos del Turi Bike Park (Cuenca, Azuay) sobre el heightmap MapaReal_Alturas.png.
@@ -13,31 +13,15 @@ public static class TuriBikeParkTrails
 {
     private const float BoxX0 = 52f, BoxY0 = 25f, BoxX1 = 422f, BoxY1 = 394f;
 
-    /// <summary>Tramo de sendero que se talla en el terreno.</summary>
-    public class Segment
-    {
-        public string Name;
-        public float HalfWidth;   // Medio ancho en metros.
-        public float MaxClimb = 0.08f;   // Subida máxima (8 % = se sube pedaleando).
-        public Vector2[] Image;   // Puntos en la imagen: x de 0 (oeste) a 1 (este), y de 0 (norte) a 1 (sur).
-    }
-
-    /// <summary>Ruta completa de salida a meta, armada con tramos.</summary>
-    public class Route
-    {
-        public string Name;
-        public Color Color;
-        public int[] Segments;
-    }
-
     // Tramos (índices usados por las rutas).
     private const int SalidaOeste = 0, SalidaLoma = 1, Bosque = 2, Zigzag = 3, Cresta = 4, Rapida = 5, Llegada = 6;
 
-    public static List<Segment> Segments()
+    public static RealMapTrails.Set Create()
     {
+        RealMapTrails.Set set = new RealMapTrails.Set { MapName = "Turi Bike Park" };
         // Los tramos compartidos (salidas y llegada) son más anchos: ahí se juntan los corredores.
         // Las salidas casi no suben (3 %): arrancan con un sprint, no con una cuesta.
-        return new List<Segment>
+        set.Segments.AddRange(new[]
         {
             // Rodea la hondonada por su borde oeste (casi plano) en vez de bajar a ella y tener que salir subiendo.
             Make("Salida por el oeste", 4f, 224,341, 225,330, 226,316, 226,302, 225,288, 224,274, 223,264, 230,259,
@@ -53,33 +37,16 @@ public static class TuriBikeParkTrails
             Make("La Rápida", 3f, 302,224, 305,212, 305,200, 306,188, 307,175, 305,162, 306,150, 309,141, 314,133,
                 308,129, 296,127, 285,123, 277,117, 271,109, 260,107, 250,106),
             Make("Llegada", 4.5f, 250,106, 246,104, 242,99, 241,92, 241,88),
-        };
-    }
-
-    public static List<Route> Routes()
-    {
-        return new List<Route>
-        {
-            new Route { Name = "El Bosque", Color = new Color(0.25f, 0.9f, 0.35f), Segments = new[] { SalidaOeste, Bosque, Llegada } },
-            new Route { Name = "El Zigzag", Color = new Color(1f, 0.78f, 0.15f), Segments = new[] { SalidaLoma, Zigzag, Llegada } },
-            new Route { Name = "La Cresta", Color = new Color(1f, 0.3f, 0.8f), Segments = new[] { SalidaLoma, Cresta, Llegada } },
-            new Route { Name = "La Rápida", Color = new Color(1f, 0.28f, 0.2f), Segments = new[] { SalidaLoma, Rapida, Llegada } },
-        };
-    }
-
-    private static Segment Climb(this Segment segment, float maxClimb)
-    {
-        segment.MaxClimb = maxClimb;
-        return segment;
+        });
+        set.Routes.Add(new RealMapTrails.Route { Name = "El Bosque", Color = new Color(0.25f, 0.9f, 0.35f), Segments = new[] { SalidaOeste, Bosque, Llegada } });
+        set.Routes.Add(new RealMapTrails.Route { Name = "El Zigzag", Color = new Color(1f, 0.78f, 0.15f), Segments = new[] { SalidaLoma, Zigzag, Llegada } });
+        set.Routes.Add(new RealMapTrails.Route { Name = "La Cresta", Color = new Color(1f, 0.3f, 0.8f), Segments = new[] { SalidaLoma, Cresta, Llegada } });
+        set.Routes.Add(new RealMapTrails.Route { Name = "La Rápida", Color = new Color(1f, 0.28f, 0.2f), Segments = new[] { SalidaLoma, Rapida, Llegada } });
+        return set;
     }
 
     private static Segment Make(string name, float halfWidth, params int[] xy)
     {
-        Vector2[] points = new Vector2[xy.Length / 2];
-        for (int i = 0; i < points.Length; i++)
-        {
-            points[i] = new Vector2((xy[i * 2] - BoxX0) / (BoxX1 - BoxX0), (xy[i * 2 + 1] - BoxY0) / (BoxY1 - BoxY0));
-        }
-        return new Segment { Name = name, HalfWidth = halfWidth, Image = points };
+        return RealMapTrails.Make(name, halfWidth, BoxX0, BoxY0, BoxX1, BoxY1, xy);
     }
 }

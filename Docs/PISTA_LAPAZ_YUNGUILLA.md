@@ -1,5 +1,10 @@
 # Pista 2: La Paz — Yunguilla (Azuay)
 
+> **Reemplazada.** La Paz ahora es un **mapa real** (heightmap de Yunguilla, 4,7 km, ~1 200 m de bajada,
+> pista ancha para Avalancha): ver [MAPA_REAL.md](MAPA_REAL.md#la-paz--yunguilla). El menú carga la escena
+> `LaPaz`. Lo de abajo describe la versión generada anterior (escena `Pista02`), que sigue existiendo pero
+> ya no aparece en el menú.
+
 Basada en los videos de la carrera real: no es una copia exacta, sino una versión exagerada para el juego,
 con sus partes más reconocibles. **≈ 1.27 km, 147 m de desnivel, ≈ 1:30 de bajada promedio**
 (≈ 1:26 una bajada muy buena), según la simulación con la física del juego.
