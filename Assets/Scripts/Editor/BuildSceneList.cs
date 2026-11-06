@@ -18,6 +18,8 @@ public static class BuildSceneList
     public static void Register(string path)
     {
         List<EditorBuildSettingsScene> current = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+        // Se quitan las escenas que ya no existen (por ejemplo, pistas viejas que se borraron).
+        current.RemoveAll(s => !System.IO.File.Exists(s.path));
         if (!current.Exists(s => s.path == path)) current.Add(new EditorBuildSettingsScene(path, true));
 
         List<EditorBuildSettingsScene> ordered = new List<EditorBuildSettingsScene>();

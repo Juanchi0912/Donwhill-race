@@ -15,8 +15,8 @@ using PT = ProceduralTextures;
 /// Construye por código la escena de una pista a partir de su "Diseño de pista" (TrackLayout): el camino,
 /// la bici GY RAVEN con su corredor, el entorno según el ambiente (bosque nublado o valle seco),
 /// cámara, UI, luces y post-procesado. Así nadie tiene que armar la escena a mano ni editar archivos .unity.
-/// Menú: DownhillRace → Crear escena del prototipo / Crear escena: La Paz — Yunguilla,
-/// o el botón "Construir escena" en el Inspector de cualquier diseño.
+/// Menú: DownhillRace → Crear escena del prototipo, o el botón "Construir escena" en el Inspector de cualquier diseño.
+/// También arma la bici, la cámara y el HUD de los mapas reales (AddRaceSetup).
 /// </summary>
 public static class PrototypeSceneBuilder
 {
@@ -48,11 +48,6 @@ public static class PrototypeSceneBuilder
         BuildScene(TrackLayoutLibrary.GetPista01());
     }
 
-    [MenuItem("DownhillRace/Crear escena: La Paz — Yunguilla", priority = 1)]
-    public static void CreateLaPazScene()
-    {
-        BuildScene(TrackLayoutLibrary.GetLaPazYunguilla());
-    }
 
     /// <summary>Construye y guarda la escena de un diseño de pista (Assets/Scenes/&lt;escena&gt;.unity).</summary>
     public static void BuildScene(TrackLayout layout)

@@ -184,7 +184,7 @@ recorte al borde, sendero #D2B48C, pasto #A8B47A y día caluroso. Si la ventana 
 **Usar valores recomendados (La Paz — Yunguilla)**.
 
 Mientras no exista el modo Avalancha (salida en grupo con rivales), se juega en **Carrera → La Paz**
-como contrarreloj. La versión generada anterior (`Pista02`) ya no sale en el menú.
+como contrarreloj.
 
 El trazado y las zonas de ambientación están en `Assets/Scripts/Editor/LaPazTrails.cs`; la ambientación
 se arma en `Assets/Scripts/Editor/RealMapDecor.cs`.

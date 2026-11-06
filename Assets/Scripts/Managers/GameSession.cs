@@ -8,7 +8,7 @@ public static class GameSession
 {
     public const string MenuScene = "Menu";
     public const string RaceScene = "Pista01";
-    // La Paz es ahora un mapa real (heightmap de Yunguilla); la escena vieja Pista02 ya no se usa en el menú.
+    // La Paz es un mapa real (heightmap de Yunguilla), creado con DownhillRace → Crear mapa desde heightmap.
     public const string LaPazScene = "LaPaz";
     // El Turi Bike Park vive en la escena del mapa real (la misma donde se diseñan rampas y puentes).
     public const string TuriScene = "MapaReal";
