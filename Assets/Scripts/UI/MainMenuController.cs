@@ -57,6 +57,7 @@ public class MainMenuController : MonoBehaviour
     [Header("Botones de pistas")]
     [SerializeField] private Button track1Button = null;
     [SerializeField] private Button track2Button = null;
+    [SerializeField] private Button track3Button = null;
     [SerializeField] private Button tracksBackButton = null;
 
     [Tooltip("Texto que avisa \"Próximamente\" al elegir un modo que aún no existe.")]
@@ -94,6 +95,7 @@ public class MainMenuController : MonoBehaviour
         AddListener(freerideButton, () => ChooseMode(GameMode.Freeride, freerideButton));
         AddListener(track1Button, () => StartTrack(GameSession.RaceScene));
         AddListener(track2Button, () => StartTrack(GameSession.LaPazScene));
+        AddListener(track3Button, () => StartTrack(GameSession.TuriScene));
         AddListener(tracksBackButton, () => Show(MenuScreen.Modos));
     }
 

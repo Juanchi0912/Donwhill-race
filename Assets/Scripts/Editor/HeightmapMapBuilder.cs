@@ -27,6 +27,10 @@ public static class HeightmapMapBuilder
     private const float TreeClearance = 2f;
     private const float ForestBand = 30f;
     private const float OpenAreaRadius = 30f;
+    // Carrera: un checkpoint cada tanto a lo largo de cada ruta y la caída que hace reaparecer.
+    private const float CheckpointSpacing = 250f;
+    private const float StartOffset = 4f;
+    private const float FallBelowTerrain = 40f;
 
     /// <summary>Ajustes de la ventana; se guardan entre sesiones.</summary>
     [System.Serializable]
@@ -40,6 +44,7 @@ public static class HeightmapMapBuilder
         public float ReliefExaggeration = 1.6f; // Multiplica el desnivel: la bajada real se sentiría suave en el juego.
         public float ReliefAccent = 0.35f;     // Hace más hondas las quebradas y más marcadas las lomas.
         public bool AddTrails = true;          // Senderos del Turi Bike Park (solo sirven con este heightmap).
+        public bool Playable = true;           // Bici, cronómetro y checkpoints; se juega desde el menú Carrera.
         public Vector2 CropX = new Vector2(0f, 1f);
         public Vector2 CropZ = new Vector2(0f, 1f);
         public int Resolution = 2049;
@@ -159,22 +164,34 @@ public static class HeightmapMapBuilder
             terrain.treeDistance = 1000f;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
 
-            if (trails != null) BuildTrailObjects(terrain, trails);
-            BuildEnvironment(s, sizeX, sizeY, sizeZ);
+            List<Vector3[]> routes = trails != null ? BuildTrailObjects(terrain, trails) : null;
+            bool playable = s.Playable && routes != null && routes.Count > 0;
+            BikeController bike = null;
+            if (playable)
+            {
+                EditorUtility.DisplayProgressBar("Crear mapa", "Bici, cronómetro, checkpoints y meta", 0.9f);
+                bike = BuildRace(s, routes);
+            }
+            else
+            {
+                BuildEnvironment(s, sizeX, sizeY, sizeZ);
+            }
 
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
             EditorSceneManager.SaveScene(scene, scenePath);
+            // Solo la escena jugable entra a la lista del juego (el menú la carga por su nombre).
+            if (playable) BuildSceneList.Register(scenePath);
             AssetDatabase.SaveAssets();
 
-            Selection.activeGameObject = go;
+            Selection.activeGameObject = bike != null ? bike.gameObject : go;
             if (SceneView.lastActiveSceneView != null)
             {
                 SceneView.lastActiveSceneView.Frame(new Bounds(new Vector3(0f, sizeY * 0.5f, 0f), new Vector3(sizeX, sizeY, sizeZ)), false);
             }
             Debug.Log("DownhillRace: mapa '" + s.MapName + "' creado en " + scenePath + " (" + sizeX.ToString("0") + " × " +
                       sizeZ.ToString("0") + " m, " + sizeY.ToString("0") + " m de desnivel, heightmap de " + bitDepth +
-                      " bits, " + trees + " árboles" + (trails != null ? ", senderos del Turi Bike Park" : "") +
-                      "). No está en el juego: es solo para diseñar.");
+                      " bits, " + trees + " árboles" + (trails != null ? ", senderos del Turi Bike Park" : "") + "). " +
+                      (playable ? "Se juega desde el menú: Carrera → Turi Bike Park (o con Play en esta escena)." : "No está en el juego: es solo para diseñar."));
         }
         catch (InvalidDataException e)
         {
@@ -463,8 +480,9 @@ public static class HeightmapMapBuilder
     /// Un objeto por ruta (con su línea dibujada en la vista de escena) y marcas de salida y meta,
     /// para ubicarse al poner rampas y puentes.
     /// </summary>
-    private static void BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines)
+    private static List<Vector3[]> BuildTrailObjects(Terrain terrain, List<TrailTerrainCarver.Line> lines)
     {
+        List<Vector3[]> routes = new List<Vector3[]>();
         Transform parent = new GameObject("Senderos").transform;
         Vector3 origin = terrain.transform.position;
         List<TuriBikeParkTrails.Segment> segments = TuriBikeParkTrails.Segments();
@@ -490,6 +508,7 @@ public static class HeightmapMapBuilder
             GameObject go = new GameObject("Ruta " + route.Name);
             go.transform.SetParent(parent, false);
             go.AddComponent<TrailPath>().Configure(route.Name, route.Color, width, world);
+            routes.Add(world);
             if (first == null) first = world;
         }
 
@@ -498,6 +517,80 @@ public static class HeightmapMapBuilder
             Marker("Salida", parent, first[0], first[1] - first[0]);
             Marker("Meta", parent, first[first.Length - 1], first[first.Length - 1] - first[first.Length - 2]);
         }
+        return routes;
+    }
+
+    // =====================================================================
+    // Carrera (contrarreloj)
+    // =====================================================================
+
+    /// <summary>
+    /// Bici en la salida, GameManager, cámara, luz y HUD (los mismos de las otras pistas),
+    /// checkpoints a lo largo de cada ruta para reaparecer, y la meta que detiene el cronómetro.
+    /// </summary>
+    private static BikeController BuildRace(Settings s, List<Vector3[]> routes)
+    {
+        Vector3[] main = routes[0];
+        int startIndex = PointAtDistance(main, StartOffset);
+        Vector3 start = main[startIndex];
+        Vector3 ahead = main[Mathf.Min(main.Length - 1, startIndex + 2)] - start;
+        ahead.y = 0f;
+        BikeController bike = PrototypeSceneBuilder.AddRaceSetup(s.MapName, s.Ambience, start,
+            Quaternion.LookRotation(ahead.sqrMagnitude > 0.001f ? ahead : Vector3.forward), -FallBelowTerrain);
+
+        // Checkpoints por distancia: en los tramos compartidos coinciden, así que no se repiten.
+        Transform group = new GameObject("Checkpoints").transform;
+        List<Vector3> placed = new List<Vector3>();
+        int created = 0;
+        foreach (Vector3[] route in routes)
+        {
+            float total = RouteLength(route);
+            for (int k = 1; k * CheckpointSpacing < total - 80f; k++)
+            {
+                int i = PointAtDistance(route, k * CheckpointSpacing);
+                if (placed.Exists(p => (p - route[i]).sqrMagnitude < 15f * 15f)) continue;
+                placed.Add(route[i]);
+                Trigger("Checkpoint " + k, group, route, i, TrackTrigger.TriggerType.Checkpoint, k, 12f);
+                created++;
+            }
+        }
+        // Meta común unos metros antes del final, ancha para que entren todas las rutas.
+        Trigger("Meta", group, main, PointAtDistance(main, RouteLength(main) - 8f), TrackTrigger.TriggerType.Meta, 0, 18f);
+        Debug.Log("DownhillRace: " + created + " checkpoints y la meta en el Turi Bike Park.");
+        return bike;
+    }
+
+    private static void Trigger(string name, Transform parent, Vector3[] route, int index, TrackTrigger.TriggerType type, int order, float width)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        Vector3 forward = route[Mathf.Min(route.Length - 1, index + 1)] - route[Mathf.Max(0, index - 1)];
+        forward.y = 0f;
+        // El origen va sobre el sendero mirando hacia la bajada: ahí reaparece la bici.
+        go.transform.SetPositionAndRotation(route[index], Quaternion.LookRotation(forward.sqrMagnitude > 0.001f ? forward : Vector3.forward));
+        BoxCollider box = go.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = new Vector3(width, 10f, 3f);
+        box.center = new Vector3(0f, 4f, 0f);
+        go.AddComponent<TrackTrigger>().Configure(type, order);
+    }
+
+    private static float RouteLength(Vector3[] route)
+    {
+        float length = 0f;
+        for (int i = 1; i < route.Length; i++) length += Vector3.Distance(route[i - 1], route[i]);
+        return length;
+    }
+
+    private static int PointAtDistance(Vector3[] route, float distance)
+    {
+        float travelled = 0f;
+        for (int i = 1; i < route.Length; i++)
+        {
+            travelled += Vector3.Distance(route[i - 1], route[i]);
+            if (travelled >= distance) return i;
+        }
+        return route.Length - 1;
     }
 
     private static void Marker(string name, Transform parent, Vector3 position, Vector3 forward)

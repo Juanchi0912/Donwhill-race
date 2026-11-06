@@ -100,7 +100,7 @@ public static class PrototypeSceneBuilder
             Progress("Creando cámara, luces, post-procesado y UI", 0.85f);
             BuildCamera(bike, palette);
             BuildLighting(palette);
-            BuildPostProcessing(layout, palette);
+            BuildPostProcessing(layout.SceneName, palette);
             BuildUI(bike);
             ApplyPerformanceSettings();
 
@@ -118,6 +118,26 @@ public static class PrototypeSceneBuilder
         {
             EditorUtility.ClearProgressBar();
         }
+    }
+
+    /// <summary>
+    /// Pone en la escena abierta todo lo de una carrera, sin pista generada: GameManager (cronómetro y récord),
+    /// la bici con su corredor en "start", cámara, luz, post-procesado y HUD. Lo usan los mapas reales
+    /// (terreno desde heightmap), que ponen sus propios checkpoints y meta.
+    /// </summary>
+    public static BikeController AddRaceSetup(string trackId, TrackLayout.Theme theme, Vector3 start, Quaternion rotation, float fallHeight)
+    {
+        Palette palette = CreatePalette(theme);
+        GameManager gameManager = new GameObject("GameManager").AddComponent<GameManager>();
+        SetString(gameManager, "trackId", trackId);
+        BikeController bike = BuildBikeAndRider(palette, start, rotation);
+        SetFloat(bike, "fallHeight", fallHeight);
+        BuildCamera(bike, palette);
+        BuildLighting(palette);
+        BuildPostProcessing(trackId, palette);
+        BuildUI(bike);
+        ApplyPerformanceSettings();
+        return bike;
     }
 
     // =====================================================================
@@ -308,13 +328,18 @@ public static class PrototypeSceneBuilder
     // Bici GY RAVEN y corredor
     // =====================================================================
 
-    /// <summary>Crea la esfera física y el modelo visual rígido, y los conecta a BikeController, BikeVisuals y WheelSpray.</summary>
+    /// <summary>Crea la bici en la salida de una pista generada.</summary>
     private static BikeController BuildBikeAndRider(Palette p, TrackGenerator track)
     {
         int startIndex = track.GetIndexAtDistance(StartDistance);
         Vector3 startPoint = track.GetSurfacePoint(startIndex, 0f);
         Quaternion startRotation = Quaternion.LookRotation(Flat(track.GetForward(startIndex)), Vector3.up);
+        return BuildBikeAndRider(p, startPoint, startRotation);
+    }
 
+    /// <summary>Crea la esfera física y el modelo visual rígido, y los conecta a BikeController, BikeVisuals y WheelSpray.</summary>
+    private static BikeController BuildBikeAndRider(Palette p, Vector3 startPoint, Quaternion startRotation)
+    {
         // --- Esfera física invisible.
         GameObject physics = new GameObject("Bici");
         physics.transform.SetPositionAndRotation(startPoint + Vector3.up * 0.55f, startRotation);
@@ -1618,9 +1643,9 @@ public static class PrototypeSceneBuilder
     }
 
     /// <summary>Post-procesado ligero: tonos neutros, algo de contraste, bloom suave y viñeta.</summary>
-    private static void BuildPostProcessing(TrackLayout layout, Palette p)
+    private static void BuildPostProcessing(string sceneName, Palette p)
     {
-        string profilePath = "Assets/Settings/" + layout.SceneName + "_PostProceso.asset";
+        string profilePath = "Assets/Settings/" + sceneName + "_PostProceso.asset";
         VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(profilePath);
         if (profile == null)
         {

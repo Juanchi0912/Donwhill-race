@@ -61,6 +61,10 @@ public class HeightmapMapWindow : EditorWindow
         settings.ReliefAccent = EditorGUILayout.Slider(new GUIContent("Acentuar quebradas", "Hace más hondas las quebradas y más marcadas las lomas (0 = como el mapa)."), settings.ReliefAccent, 0f, 1f);
         EditorGUILayout.LabelField("Desnivel en el juego", "≈ " + (settings.HeightDifference * settings.ReliefExaggeration).ToString("0") + " m (más lo que sume el acento)");
         settings.AddTrails = EditorGUILayout.Toggle(new GUIContent("Senderos Turi Bike Park", "Talla y pinta las 4 rutas del Turi Bike Park. Solo calzan con el heightmap de Turi – Ictocruz."), settings.AddTrails);
+        using (new EditorGUI.DisabledScope(!settings.AddTrails))
+        {
+            settings.Playable = EditorGUILayout.Toggle(new GUIContent("Jugable (menú Carrera)", "Pone la bici en la salida, cronómetro, checkpoints y meta, y agrega la escena al menú: Carrera → Turi Bike Park."), settings.Playable);
+        }
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Recorte (qué parte de la imagen usar)", EditorStyles.boldLabel);

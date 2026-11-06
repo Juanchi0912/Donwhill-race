@@ -9,6 +9,8 @@ public static class GameSession
     public const string MenuScene = "Menu";
     public const string RaceScene = "Pista01";
     public const string LaPazScene = "Pista02";
+    // El Turi Bike Park vive en la escena del mapa real (la misma donde se diseñan rampas y puentes).
+    public const string TuriScene = "MapaReal";
 
     /// <summary>Escena de la pista elegida en el menú.</summary>
     public static string SelectedTrackScene { get; set; } = RaceScene;

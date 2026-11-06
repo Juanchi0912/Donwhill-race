@@ -32,6 +32,8 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
    - **Exagerar desnivel ×** (1,6): multiplica la altura. Tal cual es la realidad, la bajada se siente suave.
    - **Acentuar quebradas** (0,35): hace más hondas las quebradas y más marcadas las lomas.
    - **Senderos Turi Bike Park** (activado): talla y pinta las 4 rutas (ver abajo). Solo calzan con este heightmap.
+   - **Jugable (menú Carrera)** (activado): pone la bici, el cronómetro, checkpoints y la meta, y agrega la
+     escena al juego (Carrera → Turi Bike Park). Desactívalo si solo quieres ver el mapa desde arriba.
    - **Recorte**: si solo quieres una parte de la imagen, mueve los dos extremos de cada barra.
      Debajo dice cuánto medirá el mapa.
    - **Resolución**: **2049** (recomendado con senderos: cada punto del terreno mide 0,86 m y el sendero sale nítido).
@@ -100,10 +102,23 @@ Consejos:
 - **Shift + clic** borra árboles; **Ctrl + Shift + clic** borra solo el tipo elegido.
 - Los árboles tienen colisión en el tronco (la bici choca); los arbustos no.
 
-## 5. Lo que falta para jugarlo
+## 5. Jugarlo
 
-Por ahora el mapa es solo para diseñar. Falta convertirlo en pista de **contrarreloj** (cronómetro, checkpoints
-sobre las rutas, reaparecer, meta) y agregarla al menú. Más adelante, el modo **Avalancha** (salida en grupo).
+Con **Jugable** activado, la escena `MapaReal` es también una pista de **contrarreloj**:
+- La bici arranca en la **Salida**, con la misma cuenta regresiva, cronómetro, HUD y controles de las otras pistas.
+- Hay **checkpoints** cada ~250 m sobre cada ruta (R / Y para reaparecer en el último) y la **Meta** detiene el tiempo.
+- Si caes fuera del mapa, reapareces en el último checkpoint.
+
+Para jugar:
+- **Desde el menú:** abre `Menu.unity` → Play → Jugar → Carrera → **Turi Bike Park**.
+  (La tarjeta aparece después de reconstruir el menú: **DownhillRace → Crear escena del menú**.)
+- **Directo:** abre `MapaReal.unity` y presiona Play (útil para probar rampas mientras las pones).
+
+Las rampas y puentes que pongas en esta escena se juegan tal cual. Ojo: **Crear mapa** rehace la escena
+completa y borra lo que hayas agregado, así que una vez que empieces a poner rampas no lo vuelvas a usar.
+
+Falta: fuera del sendero no frena el pasto (solo en las pistas generadas), no hay arco de salida ni de meta,
+y el modo **Avalancha** (salida en grupo) viene después.
 
 ## Archivos
 
