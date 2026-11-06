@@ -11,7 +11,7 @@ public class HeightmapMapWindow : EditorWindow
 {
     private const string PrefsKey = "DownhillRace.MapaDesdeHeightmap";
     private static readonly int[] Resolutions = { 513, 1025, 2049 };
-    private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (recomendado)", "2049 (máximo detalle)" };
+    private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)" };
 
     [SerializeField] private HeightmapMapBuilder.Settings settings = new HeightmapMapBuilder.Settings();
     [SerializeField] private float trailMargin = 1.5f;
@@ -45,6 +45,14 @@ public class HeightmapMapWindow : EditorWindow
         EditorGUILayout.HelpBox("Crea un terreno a escala real desde un heightmap (imagen en gris: claro = alto). " +
                                 "Queda en una escena aparte: no se agrega al juego ni al menú.", MessageType.Info);
 
+        // La ventana recuerda los valores de la última vez: este botón vuelve a los del Turi Bike Park.
+        if (GUILayout.Button("Usar valores recomendados (Turi Bike Park)"))
+        {
+            settings = new HeightmapMapBuilder.Settings();
+            SaveSettings();
+            GUI.FocusControl(null);
+        }
+
         EditorGUI.BeginChangeCheck();
         DrawHeightmapField();
         settings.MapName = EditorGUILayout.TextField(new GUIContent("Nombre del mapa", "Nombre de la escena y del terreno."), settings.MapName);
@@ -75,7 +83,7 @@ public class HeightmapMapWindow : EditorWindow
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Detalle", EditorStyles.boldLabel);
         int current = System.Array.IndexOf(Resolutions, settings.Resolution);
-        settings.Resolution = Resolutions[EditorGUILayout.Popup("Resolución", current < 0 ? 1 : current, ResolutionNames)];
+        settings.Resolution = Resolutions[EditorGUILayout.Popup("Resolución", current < 0 ? 2 : current, ResolutionNames)];
         settings.SmoothMeters = EditorGUILayout.Slider(new GUIContent("Suavizado (m)", "Borra los escalones de la imagen. Más alto = más liso pero menos detalle."), settings.SmoothMeters, 0f, 20f);
 
         EditorGUILayout.Space();
