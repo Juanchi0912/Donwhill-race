@@ -133,8 +133,21 @@ public class BikeController : MonoBehaviour
     [Tooltip("Altura sobre el punto del checkpoint a la que reaparece la bici.")]
     [SerializeField] private float respawnHeightOffset = 0.6f;
 
+    [Header("Caídas")]
+    [Tooltip("Chocar de frente contra un árbol, una roca o una baranda es caída (se activa en las pistas terminadas).")]
+    [SerializeField] private bool crashOnImpact = false;
+
+    [Tooltip("Velocidad de choque (m/s, de frente contra el obstáculo) a partir de la que se cae.")]
+    [SerializeField, Min(1f)] private float crashImpactSpeed = 8.5f;
+
+    [Tooltip("Segundos en el suelo antes de reaparecer en el último checkpoint.")]
+    [SerializeField, Min(0.2f)] private float crashRecoverSeconds = 1.6f;
+
     /// <summary>Se dispara al reaparecer (para que la cámara y el modelo salten sin suavizado).</summary>
     public event Action Respawned;
+
+    /// <summary>Se cae al chocar fuerte (solo en las pistas con caídas activadas).</summary>
+    public event Action Crashed;
 
     public Vector3 Velocity => rb.linearVelocity;
     public float Speed => rb.linearVelocity.magnitude;
@@ -144,6 +157,7 @@ public class BikeController : MonoBehaviour
     public Vector3 GroundNormal { get; private set; } = Vector3.up;
     public float SteerInput { get; private set; }
     public bool IsCrouching { get; private set; }
+    public bool IsCrashed => crashTimer > 0f;
     public float MaxSpeed => maxSpeed;
 
     /// <summary>Esfuerzo real de pedaleo en este paso (0 a 1): intensidad × potencia disponible.</summary>
@@ -192,6 +206,8 @@ public class BikeController : MonoBehaviour
 
     private bool onGrass;
     private float zoneDeceleration; // Suma de las zonas que frenan (agua) en las que está la bici.
+    private float zoneGripLoss;     // Suma de las zonas resbalosas (arcilla) en las que está la bici.
+    private float crashTimer;
     private Collider cachedGroundCollider;
     private TrackGenerator cachedTrack;
 
@@ -263,6 +279,17 @@ public class BikeController : MonoBehaviour
 
         UpdateGround(dt);
 
+        // Caído: la bici se frena en el suelo y al rato reaparece en el último checkpoint.
+        if (crashTimer > 0f)
+        {
+            crashTimer -= dt;
+            rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, new Vector3(0f, rb.linearVelocity.y, 0f), 1f - Mathf.Exp(-5f * dt));
+            ForwardSpeed = 0f;
+            PedalEffort = 0f;
+            if (crashTimer <= 0f) RespawnAtCheckpoint();
+            return;
+        }
+
         // Antes del ¡YA! la bici queda quieta en la salida.
         if (gameManager != null && gameManager.State != GameManager.RaceState.Carrera
             && gameManager.State != GameManager.RaceState.Meta)
@@ -303,7 +330,9 @@ public class BikeController : MonoBehaviour
             // --- Agarre: quitar parte de la velocidad lateral para que la bici siga su rumbo.
             Vector3 right = Vector3.Cross(GroundNormal, forward).normalized;
             float lateralSpeed = Vector3.Dot(velocity, right);
-            velocity -= right * lateralSpeed * (1f - Mathf.Exp(-lateralGrip * dt));
+            // En la arcilla se agarra menos: la llanta se va de lado en las curvas.
+            float grip = lateralGrip * Mathf.Clamp(1f - zoneGripLoss, 0.3f, 1f);
+            velocity -= right * lateralSpeed * (1f - Mathf.Exp(-grip * dt));
 
             // --- Pedaleo con potencia constante: mucho empuje al arrancar y menos a más velocidad.
             // Mientras más se pedalea, más rápido se va (hasta el tope), pero se gasta energía.
@@ -397,6 +426,33 @@ public class BikeController : MonoBehaviour
         zoneDeceleration += amount;
     }
 
+    /// <summary>Lo llaman las GripZone al entrar (positivo) y salir (negativo): 0,5 = la mitad de agarre.</summary>
+    public void AddZoneGripLoss(float amount)
+    {
+        zoneGripLoss += amount;
+    }
+
+    /// <summary>Activa las caídas al chocar fuerte. La llama el constructor de escena en las pistas terminadas.</summary>
+    public void EnableCrashes(bool enabled)
+    {
+        crashOnImpact = enabled;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!crashOnImpact || crashTimer > 0f || !CanMove()) return;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint contact = collision.GetContact(i);
+            // Suelo, rampas y recepciones (normal hacia arriba) no son choque: solo lo que se para de frente.
+            if (Mathf.Abs(contact.normal.y) > 0.55f) continue;
+            if (Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal)) < crashImpactSpeed) continue;
+            crashTimer = crashRecoverSeconds;
+            Crashed?.Invoke();
+            return;
+        }
+    }
+
     /// <summary>Altura bajo la cual la bici reaparece. La llama el constructor de escena.</summary>
     public void ConfigureFallHeight(float height)
     {
@@ -420,6 +476,7 @@ public class BikeController : MonoBehaviour
     private void Teleport(Vector3 position, float headingDegrees)
     {
         rb.linearVelocity = Vector3.zero;
+        crashTimer = 0f;
         rb.position = position;
         transform.position = position;
         heading = previousHeading = headingDegrees;

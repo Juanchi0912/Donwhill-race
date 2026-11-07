@@ -161,7 +161,9 @@ public class BikeVisuals : MonoBehaviour
 
         // Inclinación: hacia el lado de la curva (giro a la derecha = ángulo Z negativo).
         float targetLean = -controller.SteerInput * maxLeanAngle * Mathf.Clamp01(speed / fullLeanSpeed);
-        currentLean = Mathf.Lerp(currentLean, targetLean, 1f - Mathf.Exp(-leanSmoothing * dt));
+        // Caído: la bici queda tirada de lado hasta reaparecer.
+        if (controller.IsCrashed) targetLean = 78f;
+        currentLean = Mathf.Lerp(currentLean, targetLean, 1f - Mathf.Exp(-(controller.IsCrashed ? 10f : leanSmoothing) * dt));
         if (inclinacion != null) inclinacion.localRotation = Quaternion.Euler(0f, 0f, currentLean + rock);
         if (corredor != null) corredor.localRotation = Quaternion.Euler(0f, 0f, -rock * riderCounterRoll);
 

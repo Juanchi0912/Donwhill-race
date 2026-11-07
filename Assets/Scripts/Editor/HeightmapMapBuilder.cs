@@ -112,19 +112,30 @@ public static class HeightmapMapBuilder
                 for (int x = 0; x < res; x++) heights[z, x] *= verticalScale;
             }
 
-            List<TrailTerrainCarver.Line> trails = null, rivers = null;
+            List<TrailTerrainCarver.Line> trails = null, rivers = null, roads = null, carve = null;
+            TrailTerrainCarver.Result carved = null;
             if (s.AddTrails && trailSet != null && trailSet.Segments.Count > 0)
             {
+                // Retoques del relieve (zonas suavizadas, pasos abiertos) e inclinación hacia el norte: todo baja.
+                TerrainSculptor.Apply(heights, trailSet, s.CropX, s.CropZ, sizeX, sizeZ, s.Length / Mathf.Max(1f, s.Width));
                 EditorUtility.DisplayProgressBar("Crear mapa", "Tallando los senderos de " + trailSet.MapName, 0.3f);
                 trails = TrailTerrainCarver.BuildLines(trailSet.Segments, s.CropX, s.CropZ, sizeX, sizeZ);
-                List<TrailTerrainCarver.Line> carve = new List<TrailTerrainCarver.Line>(trails);
+                // Los caminos van primero: los senderos que los cruzan empatan su altura.
+                roads = TrailTerrainCarver.BuildRoadLines(trailSet.Roads, s.CropX, s.CropZ, sizeX, sizeZ);
+                carve = new List<TrailTerrainCarver.Line>(roads);
+                carve.AddRange(trails);
                 if (trailSet.Rivers.Count > 0)
                 {
                     // Los ríos se tallan junto con los senderos: donde se cruzan, el cauce manda.
                     rivers = TrailTerrainCarver.BuildRiverLines(trailSet.Rivers, s.CropX, s.CropZ, sizeX, sizeZ);
                     carve.AddRange(rivers);
                 }
-                TrailTerrainCarver.Carve(heights, sizeX, sizeZ, carve);
+                carved = TrailTerrainCarver.Carve(heights, sizeX, sizeZ, carve, trailSet.Bridges);
+                if (trailSet.Ridges.Count > 0)
+                {
+                    EditorUtility.DisplayProgressBar("Crear mapa", "Lomas empinadas entre las rutas", 0.4f);
+                    MountainRidges.Apply(heights, sizeX, sizeZ, trailSet, carve, s.CropX, s.CropZ);
+                }
             }
 
             float min = float.MaxValue, max = float.MinValue;
@@ -155,7 +166,10 @@ public static class HeightmapMapBuilder
             float[,] riverEdge = rivers != null ? TrailTerrainCarver.EdgeDistance(rivers, alphaRes, sizeX, sizeZ, 6f) : null;
             List<Vector3> patches = LocalPatches(trails != null ? trailSet : null, s, sizeX, sizeZ);
             List<Vector2> bounds = LocalBounds(trails != null ? trailSet : null, s, sizeX, sizeZ);
-            float[,,] alphamaps = PaintLayers(data, s, alphaRes, trailEdge, riverEdge, patches);
+            float[,] roadEdge = roads != null && roads.Count > 0 ? TrailTerrainCarver.EdgeDistance(roads, alphaRes, sizeX, sizeZ, 4f) : null;
+            float[,] clayEdge = carved != null && carved.Clay.Count > 0 ? TrailTerrainCarver.EdgeDistance(ClayLines(carve, carved), alphaRes, sizeX, sizeZ, 2f) : null;
+            bool marked = trails != null && trailSet.Dressing;
+            float[,,] alphamaps = PaintLayers(data, s, alphaRes, trailEdge, riverEdge, patches, roadEdge, clayEdge, marked);
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Plantando árboles", 0.7f);
             List<Vector2> openAreas = new List<Vector2>();
@@ -168,7 +182,7 @@ public static class HeightmapMapBuilder
                 TrailTerrainCarver.Line last = trails[main[main.Length - 1]];
                 openAreas.Add(last.Points[last.Points.Length - 1]);
             }
-            int trees = ScatterTrees(data, s, null, trailEdge, openAreas, riverEdge, patches, bounds);
+            int trees = ScatterTrees(data, s, null, trailEdge, openAreas, riverEdge, patches, bounds, roadEdge);
             AssetDatabase.CreateAsset(data, dataPath);
             AssetDatabase.SaveAssets();
 
@@ -192,7 +206,7 @@ public static class HeightmapMapBuilder
             if (playable)
             {
                 EditorUtility.DisplayProgressBar("Crear mapa", "Bici, cronómetro, checkpoints y meta", 0.9f);
-                bike = BuildRace(s, routes, trailSet.MapName, bounds, go.transform.position);
+                bike = BuildRace(s, routes, trailSet, bounds, go.transform.position, carve, carved);
             }
             else
             {
@@ -241,6 +255,12 @@ public static class HeightmapMapBuilder
                     RealMapDecor.CoastPatch(terrain, trailSet.Patches[i].Name, origin + new Vector3(patches[i].x, 0f, patches[i].y), patches[i].z,
                         routes[0], routeWidths[0], riverWorld, riverHalf, s.Seed + i);
                 }
+            }
+
+            if (routes != null && trailSet.Dressing)
+            {
+                EditorUtility.DisplayProgressBar("Crear mapa", "Pista terminada: cintas, pancartas, puente, saltos de madera, público", 0.97f);
+                TrackDressing.Build(terrain, trailSet, carve, carved, routes, s, -min);
             }
 
             VisualAssetFactory.EnsureFolder("Assets/Scenes");
@@ -382,7 +402,8 @@ public static class HeightmapMapBuilder
         else Debug.Log("DownhillRace: colores del terreno guardados (" + (100f * painted / Mathf.Max(1, samples)).ToString("0") + " % no es la capa de fondo).");
     }
 
-    private static float[,,] PaintLayers(TerrainData data, Settings s, int alphaRes, float[,] trailEdge, float[,] riverEdge, List<Vector3> patches)
+    private static float[,,] PaintLayers(TerrainData data, Settings s, int alphaRes, float[,] trailEdge, float[,] riverEdge, List<Vector3> patches,
+        float[,] roadEdge = null, float[,] clayEdge = null, bool marked = false)
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         TerrainLayer grass = Layer(s.MapName + "_CapaPasto", dry ? "PastoSeco" : "Pasto", 8f);
@@ -400,9 +421,35 @@ public static class HeightmapMapBuilder
                 AssetDatabase.LoadAssetAtPath<Texture2D>(VisualAssetFactory.TexturesFolder + "/TierraSecaNormal.png"), 4f)
             : Layer(s.MapName + "_CapaTierra", dry ? "TierraSeca" : "Tierra", 4f);
         bool green = patches != null && patches.Count > 0;
-        int layers = green ? 4 : 3;
-        // Zonas de costa: pasto verde (el de bosque) en vez del seco.
-        data.terrainLayers = green ? new[] { grass, rock, dirt, Layer(s.MapName + "_CapaPastoVerde", "Pasto", 8f) } : new[] { grass, rock, dirt };
+        // Capas: pasto, roca, tierra, [pasto verde], [orilla oscura], [arcilla], [camino].
+        List<TerrainLayer> list = new List<TerrainLayer> { grass, rock, dirt };
+        int greenIndex = -1, edgeIndex = -1, clayIndex = -1, roadIndex = -1;
+        if (green)
+        {
+            greenIndex = list.Count;
+            list.Add(Layer(s.MapName + "_CapaPastoVerde", "Pasto", 8f));
+        }
+        if (marked)
+        {
+            // Orilla de tierra oscura y compacta: la línea del sendero se ve clarito desde lejos.
+            edgeIndex = list.Count;
+            list.Add(VisualAssetFactory.TerrainLayerAsset(s.MapName + "_CapaOrilla", TrailColorTexture(s.MapName + "_Orilla", new Color(0.36f, 0.25f, 0.16f)),
+                AssetDatabase.LoadAssetAtPath<Texture2D>(VisualAssetFactory.TexturesFolder + "/TierraNormal.png"), 3f));
+        }
+        if (clayEdge != null)
+        {
+            // Arcilla rojiza en las curvas cerradas con peralte.
+            clayIndex = list.Count;
+            list.Add(VisualAssetFactory.TerrainLayerAsset(s.MapName + "_CapaArcilla", TrailColorTexture(s.MapName + "_Arcilla", new Color(0.66f, 0.33f, 0.2f)),
+                AssetDatabase.LoadAssetAtPath<Texture2D>(VisualAssetFactory.TexturesFolder + "/TierraNormal.png"), 3f));
+        }
+        if (roadEdge != null)
+        {
+            roadIndex = list.Count;
+            list.Add(Layer(s.MapName + "_CapaCamino", "Carretera", 5f));
+        }
+        int layers = list.Count;
+        data.terrainLayers = list.ToArray();
 
         // Más resolución en mapas grandes para que un sendero de 6 m se vea nítido.
         data.alphamapResolution = alphaRes;
@@ -414,30 +461,64 @@ public static class HeightmapMapBuilder
             {
                 float steep = data.GetSteepness(x / (float)(alphaRes - 1), y / (float)(alphaRes - 1));
                 float rockAmount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(30f, 45f, steep));
-                float trail = 0f, trailRock = 0f;
+                float trail = 0f, trailRock = 0f, rim = 0f;
                 if (trailEdge != null && trailEdge[y, x] < 2f)
                 {
-                    // Borde irregular: el pasto se come un poco la orilla, como en un sendero real.
-                    float wobble = (Mathf.PerlinNoise(x * texelX * 0.15f, y * texelZ * 0.15f) - 0.5f) * 1.4f;
-                    trail = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.8f, 0.9f, trailEdge[y, x] + wobble));
+                    if (marked)
+                    {
+                        // Borde nítido (casi sin mordidas del pasto) y una franja oscura en la orilla.
+                        float wobble = (Mathf.PerlinNoise(x * texelX * 0.3f, y * texelZ * 0.3f) - 0.5f) * 0.35f;
+                        float e = trailEdge[y, x] + wobble;
+                        trail = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, e));
+                        rim = Mathf.Clamp01(1f - Mathf.Abs(e + 0.45f) / 0.6f);
+                    }
+                    else
+                    {
+                        // Borde irregular: el pasto se come un poco la orilla, como en un sendero real.
+                        float wobble = (Mathf.PerlinNoise(x * texelX * 0.15f, y * texelZ * 0.15f) - 0.5f) * 1.4f;
+                        trail = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.8f, 0.9f, trailEdge[y, x] + wobble));
+                    }
                     // En lo empinado del sendero asoma la roca (lajas, como en las fotos de la pista).
                     // Con color liso, el suelo por donde pasa la bici queda todo de ese color.
-                    if (!plainTrail) trailRock = trail * 0.6f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, steep));
+                    if (!plainTrail) trailRock = trail * 0.6f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, steep)) * (marked ? 0.5f : 1f);
                 }
-                float g = (1f - rockAmount) * (1f - trail);
-                float rk = rockAmount * (1f - trail) + trailRock;
+                float clay = 0f;
+                if (clayEdge != null && clayEdge[y, x] < 1f) clay = trail * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.5f, 0.8f, clayEdge[y, x])));
+                float road = 0f;
+                if (roadEdge != null && roadEdge[y, x] < 1.5f) road = (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.3f, 0.9f, roadEdge[y, x]))) * (1f - trail);
+
+                float g = (1f - rockAmount) * (1f - trail) * (1f - road);
+                float rk = rockAmount * (1f - trail) * (1f - road) + trailRock;
                 float dt = trail - trailRock;
+                float edgeW = 0f;
+                if (marked)
+                {
+                    edgeW = dt * rim * 0.85f;
+                    dt -= edgeW;
+                }
+                float clayW = Mathf.Min(clay, dt + edgeW);
+                if (clayW > 0f)
+                {
+                    float fromDirt = Mathf.Min(dt, clayW);
+                    dt -= fromDirt;
+                    edgeW -= clayW - fromDirt;
+                }
                 // Cauce del río: piedras (también donde lo cruza el sendero).
                 if (riverEdge != null && riverEdge[y, x] < 3f)
                 {
                     float river = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1f, 2.5f, riverEdge[y, x]));
                     g *= 1f - river;
                     dt *= 1f - river;
+                    edgeW *= 1f - river;
+                    clayW *= 1f - river;
                     rk = rk * (1f - river) + river;
                 }
                 alpha[y, x, 0] = g;
                 alpha[y, x, 1] = rk;
                 alpha[y, x, 2] = dt;
+                if (edgeIndex >= 0) alpha[y, x, edgeIndex] = edgeW;
+                if (clayIndex >= 0) alpha[y, x, clayIndex] = clayW;
+                if (roadIndex >= 0) alpha[y, x, roadIndex] = road;
                 if (green)
                 {
                     float lush = 0f;
@@ -448,13 +529,29 @@ public static class HeightmapMapBuilder
                         float d = Vector2.Distance(m, new Vector2(patch.x, patch.y)) / patch.z;
                         lush = Mathf.Max(lush, 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1.15f, d + wobble)));
                     }
-                    alpha[y, x, 3] = g * lush;
+                    alpha[y, x, greenIndex] = g * lush;
                     alpha[y, x, 0] = g * (1f - lush);
                 }
             }
         }
         data.SetAlphamaps(0, 0, alpha);
         return alpha;
+    }
+
+    /// <summary>Las curvas de arcilla como líneas cortas (para pintarlas y poner zonas resbalosas).</summary>
+    internal static List<TrailTerrainCarver.Line> ClayLines(List<TrailTerrainCarver.Line> lines, TrailTerrainCarver.Result carved)
+    {
+        List<TrailTerrainCarver.Line> result = new List<TrailTerrainCarver.Line>();
+        foreach (Vector3Int c in carved.Clay)
+        {
+            TrailTerrainCarver.Line line = lines[c.x];
+            int count = c.z - c.y + 1;
+            if (count < 2) continue;
+            Vector2[] points = new Vector2[count];
+            System.Array.Copy(line.Points, c.y, points, 0, count);
+            result.Add(new TrailTerrainCarver.Line { Name = line.Name + " (arcilla)", HalfWidth = line.HalfWidth, Points = points });
+        }
+        return result;
     }
 
     private static bool TryTrailColor(Settings s, out Color color)
@@ -594,7 +691,7 @@ public static class HeightmapMapBuilder
     /// con "trailEdge" además el bosque se espesa a los lados de las rutas. Devuelve cuántos plantó.
     /// </summary>
     private static int ScatterTrees(TerrainData data, Settings s, float[,] dirt, float[,] trailEdge, List<Vector2> openAreas,
-        float[,] riverEdge, List<Vector3> patches, List<Vector2> bounds)
+        float[,] riverEdge, List<Vector3> patches, List<Vector2> bounds, float[,] roadEdge = null)
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         List<GameObject> tall = new List<GameObject>(), broad = new List<GameObject>(), bushes = new List<GameObject>();
@@ -637,6 +734,7 @@ public static class HeightmapMapBuilder
             Vector2 meters = new Vector2(u * data.size.x, v * data.size.z);
             if (InOpenArea(openAreas, meters)) continue;
             if (riverEdge != null && Sample(riverEdge, u, v) < 4f) continue;
+            if (roadEdge != null && Sample(roadEdge, u, v) < 2f) continue;
             // En las zonas de costa no hay bosque: ahí van caña y cacao.
             if (patches != null && patches.Exists(p => (new Vector2(p.x, p.y) - meters).sqrMagnitude < p.z * p.z * 1.2f)) continue;
 
@@ -793,8 +891,10 @@ public static class HeightmapMapBuilder
     /// Bici en la salida, GameManager, cámara, luz y HUD (los mismos de las otras pistas),
     /// checkpoints a lo largo de cada ruta para reaparecer, y la meta que detiene el cronómetro.
     /// </summary>
-    private static BikeController BuildRace(Settings s, List<Vector3[]> routes, string mapName, List<Vector2> bounds, Vector3 origin)
+    private static BikeController BuildRace(Settings s, List<Vector3[]> routes, RealMapTrails.Set set, List<Vector2> bounds, Vector3 origin,
+        List<TrailTerrainCarver.Line> carve, TrailTerrainCarver.Result carved)
     {
+        string mapName = set.MapName;
         Vector3[] main = routes[0];
         int startIndex = PointAtDistance(main, StartOffset);
         Vector3 start = main[startIndex];
@@ -816,17 +916,54 @@ public static class HeightmapMapBuilder
                                   " puntos de la ruta; no se puso. Revisa el borde en el trazado del mapa.");
         }
 
-        // Checkpoints por distancia: en los tramos compartidos coinciden, así que no se repiten.
+        if (set.Crashes)
+        {
+            // Chocar fuerte es caída: "¡CAÍDA!" en pantalla y se reaparece en el último checkpoint.
+            bike.EnableCrashes(true);
+            GameObject ui = GameObject.Find("UI");
+            if (ui != null)
+            {
+                Text crash = UiBuilder.Label("Caida", ui.transform, UiBuilder.DefaultFont, "¡CAÍDA!", 72, new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, 90f), new Color(1f, 0.25f, 0.15f), FontStyle.Bold, TextAnchor.MiddleCenter, true, new Vector2(900f, 110f));
+                ui.AddComponent<CrashNotice>().Configure(bike, crash);
+            }
+        }
+        if (set.ViewDistance > 0f)
+        {
+            // Niebla más lejos: desde arriba se ve la ciudad.
+            RenderSettings.fogStartDistance = set.ViewDistance * 0.3f;
+            RenderSettings.fogEndDistance = set.ViewDistance;
+            Camera cam = Camera.main != null ? Camera.main : Object.FindFirstObjectByType<Camera>();
+            if (cam != null) cam.farClipPlane = set.ViewDistance + 300f;
+        }
+
+        // Puntos donde no va un checkpoint: el puente y los cruces (la caja tomaría al corredor de la otra ruta).
+        List<Vector3> noCheckpoint = new List<Vector3>();
+        if (carved != null)
+        {
+            foreach (TrailTerrainCarver.Crossing c in carved.Crossings)
+            {
+                Vector2 p = carve[c.A].Points[c.IndexA];
+                noCheckpoint.Add(origin + new Vector3(p.x, 0f, p.y));
+            }
+        }
+        // Checkpoints por distancia (más seguidos en las pistas con caídas): en los tramos compartidos coinciden, así que no se repiten.
+        float spacing = set.Crashes ? 150f : CheckpointSpacing;
         Transform group = new GameObject("Checkpoints").transform;
         List<Vector3> placed = new List<Vector3>();
         int created = 0;
         foreach (Vector3[] route in routes)
         {
             float total = RouteLength(route);
-            for (int k = 1; k * CheckpointSpacing < total - 80f; k++)
+            for (int k = 1; k * spacing < total - 80f; k++)
             {
-                int i = PointAtDistance(route, k * CheckpointSpacing);
+                int i = PointAtDistance(route, k * spacing);
                 if (placed.Exists(p => (p - route[i]).sqrMagnitude < 15f * 15f)) continue;
+                if (noCheckpoint.Exists(p => new Vector2(p.x - route[i].x, p.z - route[i].z).sqrMagnitude < 30f * 30f))
+                {
+                    i = PointAtDistance(route, k * spacing + 40f);
+                    if (noCheckpoint.Exists(p => new Vector2(p.x - route[i].x, p.z - route[i].z).sqrMagnitude < 30f * 30f)) continue;
+                }
                 placed.Add(route[i]);
                 Trigger("Checkpoint " + k, group, route, i, TrackTrigger.TriggerType.Checkpoint, k, 12f);
                 created++;

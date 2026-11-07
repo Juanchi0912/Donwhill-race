@@ -200,6 +200,9 @@ public static class RealMapDecor
     // Cinta de carrera
     // =====================================================================
 
+    /// <summary>Material de la cinta "DOWNHILL RACE" (lo usa también la ambientación de las pistas terminadas).</summary>
+    internal static Material CourseTapeMaterial() => Kit.TapeMaterial();
+
     private const float TapeOffset = 0.7f;      // Distancia de los postes al borde del sendero (m).
     private const float TapeBottom = 0.78f, TapeTop = 0.94f;
     private const float TapeRepeat = 3f;        // Cada 3 m se repite el texto.
@@ -251,7 +254,7 @@ public static class RealMapDecor
     }
 
     /// <summary>Una tira de cinta entre postes seguidos, con sus postes.</summary>
-    private static void AddTapeRun(List<Vector3> run, List<Vector3> vertices, List<Vector2> uvs, List<int> tapeTris, List<int> postTris)
+    internal static void AddTapeRun(List<Vector3> run, List<Vector3> vertices, List<Vector2> uvs, List<int> tapeTris, List<int> postTris)
     {
         if (run.Count < 2) return;
         int start = vertices.Count;
@@ -608,7 +611,7 @@ public static class RealMapDecor
         }
 
         /// <summary>Material de la cinta "DOWNHILL RACE" (se ve de los dos lados).</summary>
-        private static Material TapeMaterial()
+        internal static Material TapeMaterial()
         {
             Texture2D texture = VisualAssetFactory.SaveTexture(ProceduralTextures.CourseTape(1024, 96, "DOWNHILL RACE"), "CintaCarrera",
                 VisualAssetFactory.TextureKind.Color, 1024, 4);
