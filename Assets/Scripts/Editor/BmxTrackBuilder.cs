@@ -64,8 +64,9 @@ public static class BmxTrackBuilder
             TerrainData data = new TerrainData { heightmapResolution = Resolution };
             data.size = new Vector3(shape.SizeX, sizeY, shape.SizeZ);
             data.SetHeights(0, 0, heights);
-            Paint(data, shape);
+            float[,,] alphamaps = Paint(data, shape);
             AssetDatabase.CreateAsset(data, dataPath);
+            AssetDatabase.SaveAssets();
 
             GameObject terrainGo = Terrain.CreateTerrainGameObject(data);
             terrainGo.name = "Pista BMX";
@@ -91,6 +92,7 @@ public static class BmxTrackBuilder
             EditorSceneManager.SaveScene(scene, scenePath);
             BuildSceneList.Register(scenePath);
             AssetDatabase.SaveAssets();
+            HeightmapMapBuilder.KeepPaint(data, alphamaps);
             Selection.activeGameObject = bike.gameObject;
             Debug.Log("DownhillRace: pista BMX '" + SceneName + "' creada (" + shape.Length.ToString("0") +
                       " m). Se juega desde el menú: BMX (o con Play en esta escena).");
@@ -135,7 +137,7 @@ public static class BmxTrackBuilder
     }
 
     /// <summary>Rojo en rectas y saltos, asfalto negro en curvas, líneas blancas, cemento en la salida, piedra en los muros.</summary>
-    private static void Paint(TerrainData data, BmxTrackShape shape)
+    private static float[,,] Paint(TerrainData data, BmxTrackShape shape)
     {
         TerrainLayer grass = HeightmapMapBuilder.Layer(SceneName + "_CapaPasto", "Pasto", 6f);
         TerrainLayer red = ColorLayer("Rojo", RedColor, 3f);
@@ -168,6 +170,7 @@ public static class BmxTrackBuilder
             }
         }
         data.SetAlphamaps(0, 0, alpha);
+        return alpha;
     }
 
     /// <summary>Capa de un color liso (cada una con su propia textura, para que no se pisen).</summary>

@@ -155,7 +155,7 @@ public static class HeightmapMapBuilder
             float[,] riverEdge = rivers != null ? TrailTerrainCarver.EdgeDistance(rivers, alphaRes, sizeX, sizeZ, 6f) : null;
             List<Vector3> patches = LocalPatches(trails != null ? trailSet : null, s, sizeX, sizeZ);
             List<Vector2> bounds = LocalBounds(trails != null ? trailSet : null, s, sizeX, sizeZ);
-            PaintLayers(data, s, alphaRes, trailEdge, riverEdge, patches);
+            float[,,] alphamaps = PaintLayers(data, s, alphaRes, trailEdge, riverEdge, patches);
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Plantando árboles", 0.7f);
             List<Vector2> openAreas = new List<Vector2>();
@@ -170,6 +170,7 @@ public static class HeightmapMapBuilder
             }
             int trees = ScatterTrees(data, s, null, trailEdge, openAreas, riverEdge, patches, bounds);
             AssetDatabase.CreateAsset(data, dataPath);
+            AssetDatabase.SaveAssets();
 
             EditorUtility.DisplayProgressBar("Crear mapa", "Luz, cielo y cámara", 0.85f);
             GameObject go = Terrain.CreateTerrainGameObject(data);
@@ -247,6 +248,7 @@ public static class HeightmapMapBuilder
             // Solo la escena jugable entra a la lista del juego (el menú la carga por su nombre).
             if (playable) BuildSceneList.Register(scenePath);
             AssetDatabase.SaveAssets();
+            KeepPaint(data, alphamaps);
 
             Selection.activeGameObject = bike != null ? bike.gameObject : go;
             if (SceneView.lastActiveSceneView != null)
@@ -356,7 +358,31 @@ public static class HeightmapMapBuilder
     // Texturas: pasto, roca y tierra de los senderos
     // =====================================================================
 
-    private static void PaintLayers(TerrainData data, Settings s, int alphaRes, float[,] trailEdge, float[,] riverEdge, List<Vector3> patches)
+    /// <summary>
+    /// Vuelve a aplicar la pintura al final y la guarda. Si después de pintar se crean otros recursos
+    /// (bici, materiales, árboles), Unity puede volver a cargar el terreno sin los mapas de color
+    /// (quedaba todo de pasto). Al final se comprueba que haya quedado pintado.
+    /// </summary>
+    internal static void KeepPaint(TerrainData data, float[,,] alphamaps)
+    {
+        data.SetAlphamaps(0, 0, alphamaps);
+        EditorUtility.SetDirty(data);
+        AssetDatabase.SaveAssets();
+        int res = data.alphamapResolution, layers = data.alphamapLayers, painted = 0, samples = 0;
+        float[,,] check = data.GetAlphamaps(0, 0, res, res);
+        for (int y = 0; y < res; y += 16)
+        {
+            for (int x = 0; x < res; x += 16)
+            {
+                samples++;
+                if (check[y, x, 0] < 0.5f) painted++;
+            }
+        }
+        if (layers > 1 && painted == 0) Debug.LogWarning("DownhillRace: los colores del terreno no quedaron guardados (todo es la primera capa).");
+        else Debug.Log("DownhillRace: colores del terreno guardados (" + (100f * painted / Mathf.Max(1, samples)).ToString("0") + " % no es la capa de fondo).");
+    }
+
+    private static float[,,] PaintLayers(TerrainData data, Settings s, int alphaRes, float[,] trailEdge, float[,] riverEdge, List<Vector3> patches)
     {
         bool dry = s.Ambience == TrackLayout.Theme.ValleSeco;
         TerrainLayer grass = Layer(s.MapName + "_CapaPasto", dry ? "PastoSeco" : "Pasto", 8f);
@@ -428,6 +454,7 @@ public static class HeightmapMapBuilder
             }
         }
         data.SetAlphamaps(0, 0, alpha);
+        return alpha;
     }
 
     private static bool TryTrailColor(Settings s, out Color color)
