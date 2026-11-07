@@ -36,12 +36,14 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
    - **Desnivel total (m)**: del punto más bajo al más alto (si el archivo se llama `…_331m.png` se llena solo).
    - **Exagerar desnivel ×** (1,6): multiplica la altura. Tal cual es la realidad, la bajada se siente suave.
    - **Acentuar quebradas** (0,35): hace más hondas las quebradas y más marcadas las lomas.
-   - **Senderos Turi Bike Park** (activado): talla y pinta las 4 rutas (ver abajo). Solo calzan con este heightmap.
+   - **Senderos Turi Bike Park** (activado): talla las 4 rutas con sus saltos y arma toda la pista (ver abajo).
+     Solo calzan con este heightmap.
    - **Jugable (menú Carrera)** (activado): pone la bici, el cronómetro, checkpoints y la meta, y agrega la
      escena al juego (Carrera → Turi Bike Park). Desactívalo si solo quieres ver el mapa desde arriba.
    - **Recorte**: si solo quieres una parte de la imagen, mueve los dos extremos de cada barra.
      Debajo dice cuánto medirá el mapa.
-   - **Resolución**: **2049** (recomendado con senderos: cada punto del terreno mide 0,86 m y el sendero sale nítido).
+   - **Resolución**: **2049** (cada punto del terreno mide 0,86 m). Turi usa **4097** (43 cm) para que los saltos
+     y drops queden nítidos; tarda un par de minutos en crearse.
    - **Suavizado**: con 8 bits deja **5–8 m** (si no, el terreno queda en escalones). Con 16 bits basta 1–2 m.
    - **Ambiente**: *Bosque Nublado* (pinos, pasto verde) o *Valle Seco* (árboles bajos, pasto seco).
    - **Árboles por hectárea**: 20 es un bosque ralo; 60 o más ya es denso (y pesa más).
@@ -53,37 +55,51 @@ Se puede dibujar encima (Paint, celular…) o nombrar celdas: «sale en E2, baja
 Para mirar en 3D: en la vista **Scene**, mantén **clic derecho** y muévete con **W A S D** (Shift = más rápido;
 la rueda del mouse acerca y aleja). **F** con el terreno seleccionado lo encuadra completo.
 
-## 2. Senderos del Turi Bike Park
+## 2. Turi Bike Park: la pista de carrera terminada
 
-Al crear el mapa con **Senderos Turi Bike Park** activado, las rutas quedan talladas en el terreno, pintadas
-de tierra (con roca asomando en lo más empinado) y sin árboles encima; a los lados el bosque es más cerrado,
-y la salida y la meta quedan despejadas. Se trazaron con tus capturas del mapa de calor y los senderos de
-OpenStreetMap; no es una copia exacta. Mapa de las rutas: [`Docs/TuriBikePark_Rutas.png`](TuriBikePark_Rutas.png).
+Mapa de las rutas: [`Docs/TuriBikePark_Rutas.png`](TuriBikePark_Rutas.png).
 
-**Todas salen del mismo lugar y llegan al mismo lugar:**
-- **Salida (S):** arriba, junto al cruce de la Vía a Ictocruz (celda D7).
-- **Meta (M):** abajo, cerca de la Circunvalación Sur (celda E2).
+**Las dos partes reales no se tocan:** la salida en lo alto del cerro y la llegada (los círculos grises de tu
+dibujo) quedan como estaban y no se les agrega nada (ni saltos, ni cinta, ni lomas): esas las editas tú.
+Todo lo demás es inventado para que sea divertido, al estilo de los juegos de downhill.
 
-| Ruta | Color | Por dónde va | Largo |
+| Ruta | Color | Largo | Qué tiene |
 |---|---|---|---|
-| **El Bosque** | verde | Sale por el oeste, rodea la hondonada y baja recta por el bosque del lado de San Isidro | ~1,4 km |
-| **El Zigzag** | amarillo | Por la loma de la vía; en el bosque hace un zigzag de ida y vuelta | ~1,6 km |
-| **La Cresta** | rosado | Por la loma; baja por el lomo del medio | ~1,6 km |
-| **La Rápida** | rojo | Por la loma; la línea del este, la más directa abajo | ~1,65 km |
+| **El Bosque** | verde | 2,04 km | Por el oeste. Bosque cerrado (árboles pegados al sendero), raíces, pedregal, 3 drops de roca y el **atajo con gap sobre el camino de tierra** |
+| **El Zigzag** | amarillo | 2,21 km | Curvas cerradas de **arcilla** con peralte y el **salto sobre la cerca de piedra** |
+| **La Cresta** | rosado | 2,21 km | Abierta, por el filo del este; **dobles encadenados**; pasa **por arriba del puente** |
+| **La Rápida** | rojo | 1,86 km | La más directa: pedregal, drops grandes; pasa **por debajo del puente** |
 
-Con la exageración (×1,6 y acento 0,35) cada ruta baja unos **400 m**, con pendiente media de **24–29 %**
-y tramos de **45–54°** (verdaderos drops). No se aplanó la bajada: el sendero sigue la pendiente del cerro
-y solo se nivela de lado a lado. Lo único que se ajusta son las subidas: las salidas no suben más de 3 %
-(arranque de sprint) y las rutas no más de 8 % (se suben pedaleando); para eso el sendero rebaja algunas
-lomas y rellena algunas hondonadas (hasta ~15 m en la loma de la vía).
+Las cuatro bajan **518 m** y **no suben nunca** (como mínimo bajan 4 %; las únicas "subidas" son las rampas).
+Para lograrlo el mapa se inclina 180 m hacia el norte, se suavizó la ladera del zigzag y se abrió un paso en
+la loma al norte de la salida este.
 
-**En la escena** queda el objeto **Senderos** con:
-- **Ruta El Bosque**, **Ruta El Zigzag**, **Ruta La Cresta**, **Ruta La Rápida**: cada una dibuja su línea de color
-  en la vista **Scene** (componente `TrailPath`). Sirven para ubicar rampas y puentes, y más adelante para
-  checkpoints, reaparecer y rivales.
-- **Salida** y **Meta**: marcas con ícono, mirando hacia donde va la ruta.
+**Saltos y obstáculos (60 en total):**
+- **Miradores con drop** de madera justo al salir de la parte real (uno en cada salida).
+- **Salto enorme** en la **recta final** (compartida por El Zigzag, La Cresta y La Rápida), con público y vallas.
+- En las rectas largas se ponen solos **mesas, rampas de madera, drops, dobles y lomas** (no hay rectas aburridas).
+- **Curvas de arcilla** (rojizas): peralte alto y la llanta agarra menos.
+- **Pedregales y raíces**: el piso tiene serrucho, la bici rebota.
 
-Las rampas, puentes de madera y demás obstáculos los pones tú encima del sendero.
+**Para que se sienta pista de carrera:**
+- Sendero con **orilla marcada** (bordo y franja de tierra oscura) y **cinta DOWNHILL RACE** a los dos lados.
+- **Pancartas** de patrocinadores (inventados) antes de cada salto, por fuera de las curvas y en la recta final.
+- **Lomas empinadas entre las rutas** (las líneas grises de tu dibujo): no se ve de una ruta a la otra.
+  Se corren solas al medio y bajan en pared antes de llegar a cualquier sendero.
+- **Caídas:** chocar fuerte contra un árbol, una roca, la cerca o la baranda del puente es caída
+  («¡CAÍDA!» y reapareces en el último checkpoint). Hay **checkpoints cada 150 m** con un arco.
+- Una **casa de campo** al final del camino de tierra y **Cuenca allá abajo** al norte (niebla lejana).
+
+**En la escena** queda:
+- **Senderos**: una línea de color por ruta (componente `TrailPath`) y las marcas de Salida y Meta.
+- **Pista terminada**: Cinta, Pancartas, Saltos (rampas de madera, miradores, rocas, raíces, cerca),
+  Puente, Arcilla (zonas resbalosas), Publico, Arcos, Casa de campo y Ciudad. Todo se puede mover o borrar.
+
+**Para cambiar algo** (en `Assets/Scripts/Editor/TuriBikeParkTrails.cs`):
+- Cada tramo tiene sus saltos con `.With(Feature.Drop, P(x, y))`; los tipos son `Mirador`, `Drop`, `Kicker`,
+  `Tabletop`, `Doubles`, `Rollers`, `RoadGap`, `FenceGap`, `RockDrop`, `BigJump`, `RockGarden` y `Roots`.
+- `Auto(...)` llena las rectas de saltos solo; `Forest`, `Clay` y `Crowd` encienden el bosque cerrado,
+  la arcilla y el público. Las lomas son `set.Ridges` (su altura en metros).
 
 ## 3. Pintar senderos nuevos o retocar
 
@@ -111,19 +127,19 @@ Consejos:
 
 Con **Jugable** activado, la escena `MapaReal` es también una pista de **contrarreloj**:
 - La bici arranca en la **Salida**, con la misma cuenta regresiva, cronómetro, HUD y controles de las otras pistas.
-- Hay **checkpoints** cada ~250 m sobre cada ruta (R / Y para reaparecer en el último) y la **Meta** detiene el tiempo.
-- Si caes fuera del mapa, reapareces en el último checkpoint.
+- Hay **checkpoints** cada 150 m sobre cada ruta (R / Y para reaparecer en el último) y la **Meta** detiene el tiempo.
+- Si caes fuera del mapa o chocas fuerte (caída), reapareces en el último checkpoint.
 
 Para jugar:
 - **Desde el menú:** abre `Menu.unity` → Play → Jugar → Carrera → **Turi Bike Park**.
   (La tarjeta aparece después de reconstruir el menú: **DownhillRace → Crear escena del menú**.)
 - **Directo:** abre `MapaReal.unity` y presiona Play (útil para probar rampas mientras las pones).
 
-Las rampas y puentes que pongas en esta escena se juegan tal cual. Ojo: **Crear mapa** rehace la escena
-completa y borra lo que hayas agregado, así que una vez que empieces a poner rampas no lo vuelvas a usar.
+Lo que agregues en esta escena (por ejemplo en la salida y la llegada) se juega tal cual. Ojo: **Crear mapa**
+rehace la escena completa y borra lo que hayas agregado; si ya editaste la salida o la llegada, no lo vuelvas a usar
+(o guarda tus objetos como prefab antes).
 
-Falta: fuera del sendero no frena el pasto (solo en las pistas generadas), no hay arco de salida ni de meta,
-y el modo **Avalancha** (salida en grupo) viene después.
+Falta: el modo **Avalancha** (salida en grupo con rivales) viene después.
 
 ## La Paz — Yunguilla
 
@@ -195,8 +211,14 @@ se arma en `Assets/Scripts/Editor/RealMapDecor.cs`.
 |---|---|
 | `Assets/Mapas/MapaReal_Alturas.png` | El heightmap original |
 | `Docs/MapaReal_Guia.png` | Mapa con relieve y cuadrícula para marcar senderos |
-| `Docs/TuriBikePark_Rutas.png` | Las 4 rutas del Turi Bike Park sobre la guía |
-| `Assets/Scripts/Editor/TuriBikeParkTrails.cs` | Trazado de las rutas de Turi (puntos sobre el mapa) |
+| `Docs/TuriBikePark_Rutas.png` | Mapa de la pista de carrera de Turi (rutas, saltos, puente) |
+| `Assets/Scripts/Editor/TuriBikeParkTrails.cs` | Trazado de Turi: rutas, saltos, puente, camino, lomas |
+| `Assets/Scripts/Editor/TrailFeatureShaper.cs` | Forma de los saltos, drops, dobles, peraltes y arcilla |
+| `Assets/Scripts/Editor/TerrainSculptor.cs` | Retoques del relieve e inclinación hacia el norte |
+| `Assets/Scripts/Editor/MountainRidges.cs` | Lomas empinadas entre las rutas |
+| `Assets/Scripts/Editor/TrackDressing.cs` | Pista terminada: cinta, pancartas, madera, puente, público, ciudad |
+| `Assets/Scripts/Track/GripZone.cs` | Zona resbalosa (curvas de arcilla) |
+| `Assets/Scripts/UI/CrashNotice.cs` | Muestra «¡CAÍDA!» |
 | `Assets/Scripts/Editor/LaPazTrails.cs` | Trazado de La Paz (píxeles del heightmap) |
 | `Assets/Scripts/Editor/RealMapCatalog.cs` | Los mapas reales y sus valores recomendados |
 | `Assets/Scripts/Editor/RealMapTrails.cs` | Tramos y rutas de un mapa (datos comunes) |

@@ -20,6 +20,10 @@ El pedaleo va con el botón de abajo (A / Cruz), como en los juegos clásicos de
 Saltar y agacharse están en los botones de arriba (RB / LB) para usarlos sin soltar el pedaleo.
 **B / Círculo no reinicia** en plena carrera: es fácil apretarlo sin querer.
 
+En las pistas terminadas (Turi Bike Park) **chocar fuerte** contra un árbol, una roca, una cerca o una baranda
+es **caída**: sale «¡CAÍDA!» y en un segundo y medio reapareces en el último checkpoint. En las **curvas de
+arcilla** (rojizas) la llanta agarra menos: frena antes de entrar.
+
 ## En la meta
 
 | Acción | Teclado | Xbox | PlayStation |
