@@ -480,7 +480,7 @@ public static class HeightmapMapBuilder
                     }
                     // En lo empinado del sendero asoma la roca (lajas, como en las fotos de la pista).
                     // Con color liso, el suelo por donde pasa la bici queda todo de ese color.
-                    if (!plainTrail) trailRock = trail * 0.6f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, steep)) * (marked ? 0.5f : 1f);
+                    if (!plainTrail) trailRock = trail * 0.6f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, steep)) * (marked ? 0.2f : 1f);
                 }
                 float clay = 0f;
                 if (clayEdge != null && clayEdge[y, x] < 1f) clay = trail * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.5f, 0.8f, clayEdge[y, x])));

@@ -28,7 +28,11 @@ public static class TrailTerrainCarver
     private const float JunctionBlend = 15f;     // Largo de la rampa que empata un tramo con su cruce (m).
     private const float RiverSink = 1.2f;        // El cauce queda 1,2 m bajo el terreno de alrededor.
     private const float RiverDepth = 0.8f;       // Y más hondo al centro: el agua junta en el medio.
-    private const float BridgeClearance = 5.2f;  // Altura libre bajo un puente (m).
+    private const float BridgeClearance = 7.5f;  // Separación de las dos rutas en el cruce (m), antes de ajustar el tramo.
+    private const float BridgeHeadroom = 5.5f;   // Altura libre bajo el tablero en todo el tramo (pasa el corredor parado y sobra).
+    private const float BridgeGrade = 0.2f;      // El tablero baja suave (20 %) aunque el cerro sea mucho más empinado.
+    private const float DeckDepth = 0.6f;        // Del perfil al fondo del tablero (tablas 0,35 m y el surco).
+    private const float StepSmoothing = 0.6f;    // Cuánto se suavizan los escalones del sendero (0,6 = quedan al 40 %).
     private const float RimHeight = 0.16f;       // Bordo en la orilla: se nota dónde termina el sendero.
 
     /// <summary>Línea central de un tramo, en metros desde la esquina suroeste del terreno (x = este, y = norte).</summary>
@@ -196,6 +200,40 @@ public static class TrailTerrainCarver
         // Segunda pasada con los cruces fijos.
         if (pins.Count > 0) ComputeProfiles(original, sizeX, sizeZ, lines, pins);
 
+        // Puentes: el tablero va casi plano en todo su largo y la ruta de abajo pasa en un corte con altura libre
+        // en todo el tramo que queda bajo las tablas (no solo en el punto del cruce: se cruzan en diagonal).
+        bool bridges2 = false;
+        foreach (Crossing c in result.Crossings)
+        {
+            if (!c.Bridge) continue;
+            Line upper = lines[c.Upper], lower = lines[c.Lower];
+            int iu = c.Upper == c.A ? c.IndexA : c.IndexB, il = c.Upper == c.A ? c.IndexB : c.IndexA;
+            BridgeSpan(c, upper, lower, iu, il);
+            float hu = upper.Heights[iu];
+            pins[c.Upper].RemoveAll(q => (int)q.x == iu);
+            for (int k = c.UpperFrom; k <= c.UpperTo; k++) AddPin(pins, c.Upper, k, hu - BridgeGrade * (k - iu) * Spacing);
+            float minRequired = float.MaxValue;
+            int k0 = -1, k1 = -1;
+            for (int k = 0; k < lower.Points.Length; k++)
+            {
+                for (int j = c.UpperFrom; j <= c.UpperTo; j++)
+                {
+                    if ((upper.Points[j] - lower.Points[k]).sqrMagnitude > (upper.HalfWidth + 1.5f) * (upper.HalfWidth + 1.5f)) continue;
+                    float deck = hu - BridgeGrade * (j - iu) * Spacing;
+                    minRequired = Mathf.Min(minRequired, deck - DeckDepth - BridgeHeadroom + RutDepth);
+                    if (k0 < 0) k0 = k;
+                    k1 = k;
+                }
+            }
+            if (k0 < 0) continue;
+            pins[c.Lower].RemoveAll(q => (int)q.x == il);
+            k0 = Mathf.Max(0, k0 - 3);
+            k1 = Mathf.Min(lower.Points.Length - 1, k1 + 3);
+            for (int k = k0; k <= k1; k++) AddPin(pins, c.Lower, k, minRequired - 0.04f * (k - k0) * Spacing);
+            bridges2 = true;
+        }
+        if (bridges2) ComputeProfiles(original, sizeX, sizeZ, lines, pins);
+
         // Saltos, drops, peraltes y pedregales (solo en las pistas terminadas, no en las partes reales).
         for (int k = 0; k < lines.Count; k++)
         {
@@ -221,10 +259,6 @@ public static class TrailTerrainCarver
         {
             if (!c.Bridge) continue;
             Line upper = lines[c.Upper], lower = lines[c.Lower];
-            int iu = c.Upper == c.A ? c.IndexA : c.IndexB;
-            int span = Mathf.CeilToInt((lower.HalfWidth + Shoulder + 2.5f) / Spacing);
-            c.UpperFrom = Mathf.Max(0, iu - span);
-            c.UpperTo = Mathf.Min(upper.Points.Length - 1, iu + span);
             for (int i = c.UpperFrom; i <= c.UpperTo; i++) upper.NoCarve[i] = true;
         }
 
@@ -241,16 +275,20 @@ public static class TrailTerrainCarver
                 Line line = lines[nearest[z, x] >> 24];
                 int i = nearest[z, x] & 0xFFFFFF;
                 float half = line.HalfWidth;
-                float target = line.Heights[i];
                 bool simple = line.Locked || line.Sink > 0f || line.Bank == null;
+                Vector2 cell = new Vector2(x * cellX, z * cellZ);
+                // En lo empinado el sendero queda en escalones cada 75 cm (le da carácter, se sienten las piedras).
+                // Se dejan al 40 % de su altura: sigue vibrando pero la bici ya no salta sola a cada rato.
+                int j = NeighborAlong(line.Points, i, cell, out float t);
+                float target = Mathf.Lerp(line.Heights[i], Mathf.Lerp(line.Heights[i], line.Heights[j], t), StepSmoothing);
+                float rough = simple ? 0f : Mathf.Lerp(line.Rough[i], line.Rough[j], t);
 
                 if (!simple)
                 {
                     // Peralte: el lado de afuera de la curva sube, el de adentro baja un poco.
-                    Vector2 cell = new Vector2(x * cellX, z * cellZ);
                     Vector2 tangent = Tangent(line.Points, i);
                     float lateral = Vector2.Dot(cell - line.Points[i], new Vector2(-tangent.y, tangent.x));
-                    target += line.Bank[i] * Mathf.Clamp(lateral, -half - 1f, half + 1f);
+                    target += Mathf.Lerp(line.Bank[i], line.Bank[j], t) * Mathf.Clamp(lateral, -half - 1f, half + 1f);
                 }
 
                 float weight;
@@ -261,7 +299,7 @@ public static class TrailTerrainCarver
                     if (!simple)
                     {
                         if (line.Rim) target += RimHeight * Mathf.Clamp01(1f - Mathf.Abs(e + 0.35f) / 0.45f);
-                        if (line.Rough[i] > 0f) target += line.Rough[i] * RockNoise(x * cellX, z * cellZ);
+                        if (rough > 0f) target += rough * RockNoise(x * cellX, z * cellZ);
                     }
                     weight = 1f;
                 }
@@ -292,6 +330,40 @@ public static class TrailTerrainCarver
     {
         Vector2 d = points[Mathf.Min(points.Length - 1, i + 2)] - points[Mathf.Max(0, i - 2)];
         return d.sqrMagnitude > 1e-8f ? d.normalized : new Vector2(0f, 1f);
+    }
+
+    /// <summary>
+    /// Tramo de la ruta de arriba que va sobre tablas. Si se cruzan en diagonal, la ruta de abajo ocupa más largo
+    /// bajo el puente: el tablero se alarga.
+    /// </summary>
+    private static void BridgeSpan(Crossing c, Line upper, Line lower, int iu, int il)
+    {
+        Vector2 tu = Tangent(upper.Points, iu), tl = Tangent(lower.Points, il);
+        float sin = Mathf.Max(0.35f, Mathf.Abs(tu.x * tl.y - tu.y * tl.x));
+        float cut = BridgeHeadroom * 0.5f;
+        int span = Mathf.CeilToInt((lower.HalfWidth + Mathf.Max(Shoulder, cut * ShoulderPerMeter) + 3f) / sin / Spacing);
+        c.UpperFrom = Mathf.Max(0, iu - span);
+        c.UpperTo = Mathf.Min(upper.Points.Length - 1, iu + span);
+    }
+
+    /// <summary>El punto vecino (antes o después de i) hacia donde cae la celda, y cuánto avanza hacia él (0–1).</summary>
+    private static int NeighborAlong(Vector2[] points, int i, Vector2 cell, out float t)
+    {
+        t = 0f;
+        Vector2 d = cell - points[i];
+        if (i + 1 < points.Length)
+        {
+            Vector2 seg = points[i + 1] - points[i];
+            float along = Vector2.Dot(d, seg) / Mathf.Max(1e-6f, seg.sqrMagnitude);
+            if (along > 0f) { t = Mathf.Min(1f, along); return i + 1; }
+        }
+        if (i > 0)
+        {
+            Vector2 seg = points[i - 1] - points[i];
+            float along = Vector2.Dot(d, seg) / Mathf.Max(1e-6f, seg.sqrMagnitude);
+            if (along > 0f) { t = Mathf.Min(1f, along); return i - 1; }
+        }
+        return i;
     }
 
     private static void AddPin(Dictionary<int, List<Vector2>> pins, int line, int index, float height)
@@ -363,7 +435,20 @@ public static class TrailTerrainCarver
         // En los cruces la altura fija puede quedar distinta del terreno de al lado: se reparte en una rampa.
         if (startPinned) BlendEnd(h, true);
         if (endPinned) BlendEnd(h, false);
-        if (pins != null) foreach (Vector2 pin in pins) BlendAround(h, (int)pin.x);
+        if (pins != null)
+        {
+            foreach (Vector2 pin in pins)
+            {
+                // Solo se suaviza en los bordes de un grupo de puntos fijos seguidos (el tablero de un puente).
+                int i = (int)pin.x;
+                bool before = pins.Exists(q => (int)q.x == i - 1), after = pins.Exists(q => (int)q.x == i + 1);
+                if (before && after) continue;
+                // Al terminar un tablero alto sobre una bajada empinada: recepción larga, como bajar de un drop.
+                if (before && i + 1 < n && h[i] - h[i + 1] > 0.5f) LandAfter(h, i);
+                else BlendAround(h, i);
+            }
+            foreach (Vector2 pin in pins) h[Mathf.Clamp((int)pin.x, 0, n - 1)] = pin.y;
+        }
 
         if (!startPinned) { junctions.Add(line.Points[0]); junctionHeights.Add(h[0]); }
         if (!endPinned) { junctions.Add(line.Points[n - 1]); junctionHeights.Add(h[n - 1]); }
@@ -429,6 +514,22 @@ public static class TrailTerrainCarver
             float straight = i < pin ? Mathf.Lerp(ha, hp, (i - a) / (float)(pin - a)) : Mathf.Lerp(hp, hb, (i - pin) / (float)(b - pin));
             float t = i < pin ? (pin - i) / (float)(pin - a) : (i - pin) / (float)(b - pin);
             h[i] = Mathf.Lerp(straight, h[i], Mathf.SmoothStep(0f, 1f, t));
+        }
+    }
+
+    /// <summary>Recepción después de un punto fijo alto: la altura de más se va gastando (fuerte al principio, suave al final).</summary>
+    private static void LandAfter(float[] h, int e)
+    {
+        int n = h.Length;
+        float offset = h[e] - h[e + 1];
+        int probe = Mathf.Min(n - 1, e + 1 + Mathf.RoundToInt(10f / Spacing));
+        float grade = probe > e + 1 ? (h[e + 1] - h[probe]) / ((probe - e - 1) * Spacing) : 0f;
+        float length = Mathf.Max(12f, 2f * offset / Mathf.Max(0.25f, 0.95f - grade));
+        int end = Mathf.Min(n - 1, e + Mathf.RoundToInt(length / Spacing));
+        for (int i = e + 1; i <= end; i++)
+        {
+            float t = (i - e) / (float)Mathf.Max(1, end - e);
+            h[i] += offset * (1f - t) * (1f - t);
         }
     }
 
@@ -588,7 +689,7 @@ public static class TrailTerrainCarver
     private static float RockNoise(float x, float z)
     {
         float a = Mathf.PerlinNoise(x * 0.9f + 11.3f, z * 0.9f + 7.1f) - 0.5f;
-        float b = Mathf.PerlinNoise(x * 2.3f + 3.7f, z * 2.3f + 19.9f) - 0.5f;
+        float b = Mathf.PerlinNoise(x * 1.5f + 3.7f, z * 1.5f + 19.9f) - 0.5f;
         return Mathf.Clamp(a * 1.3f + b * 0.9f, -1f, 1f);
     }
 

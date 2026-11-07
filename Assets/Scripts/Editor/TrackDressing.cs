@@ -376,11 +376,12 @@ public static class TrackDressing
     {
         if (c.Rocks.Count == 0) return;
         float hw = line.HalfWidth;
-        for (int i = from; i <= to; i += 2)
+        // Piedras sueltas al 40 % de antes (una cada ~4 m): que no se llene el sendero de piedras.
+        for (int i = from; i <= to; i += 5)
         {
             Vector3 inside = Beside(c, line, i, Range(c, -hw + 0.3f, hw - 0.3f));
             Rock(c, parent, inside - Vector3.up * 0.12f, Range(c, 0.22f, 0.42f), false, 0.55f);
-            if (i % 6 == 0)
+            if (i % 15 == 0)
             {
                 Vector3 edge = Beside(c, line, i, (c.Rng.NextDouble() < 0.5 ? -1 : 1) * (hw + Range(c, 0.2f, 1f)));
                 Rock(c, parent, edge, Range(c, 0.6f, 1.1f), true);
@@ -464,6 +465,8 @@ public static class TrackDressing
                 for (int s = -1; s <= 1; s += 2)
                 {
                     Vector3 topP = center + right * s;
+                    // Ningún pilar dentro de la ruta de abajo.
+                    if (DistanceToLine(c.Lines[crossing.Lower], topP - c.Origin) < c.Lines[crossing.Lower].HalfWidth + 2f) continue;
                     float ground = Ground(c, topP).y - 1f;
                     float height = Mathf.Max(0.5f, topP.y - ground);
                     Place("Pilar", bridge.transform, c.Cube, new Vector3(topP.x, ground + height * 0.5f, topP.z), Quaternion.LookRotation(new Vector3(t.x, 0f, t.y)),
@@ -792,6 +795,14 @@ public static class TrackDressing
         MeshCollider mc = rock.AddComponent<MeshCollider>();
         mc.sharedMesh = mesh;
         mc.convex = true;
+    }
+
+    private static float DistanceToLine(Line line, Vector3 local)
+    {
+        float best = float.MaxValue;
+        Vector2 p = new Vector2(local.x, local.z);
+        foreach (Vector2 q in line.Points) best = Mathf.Min(best, (q - p).sqrMagnitude);
+        return Mathf.Sqrt(best);
     }
 
     private static float NearestHalfWidth(Ctx c, Vector3 world)

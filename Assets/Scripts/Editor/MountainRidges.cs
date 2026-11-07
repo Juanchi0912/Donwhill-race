@@ -12,6 +12,7 @@ public static class MountainRidges
     private const float TrailClearance = 5f;   // Metros planos junto a la orilla del sendero antes de que suba la loma.
     private const float WallSlope = 1f;        // Pendiente máxima de la loma junto a un sendero (45°).
     private const float LockedFade = 110f;      // Cerca de las partes reales (círculos grises) no hay lomas.
+    private const float BridgeClear = 60f;      // Ni cerca de un puente.
     private const float SearchReach = 55f;     // Cuánto puede correrse la loma para quedar al medio de las rutas.
     private const int FieldResolution = 1025;  // Los campos de distancia se calculan más gruesos y se interpolan.
 
@@ -31,6 +32,8 @@ public static class MountainRidges
         int res = FieldResolution;
         float[,] trailEdge = TrailTerrainCarver.EdgeDistance(solid, res, sizeX, sizeZ, 90f);
         List<TrailTerrainCarver.Line> locked = solid.FindAll(l => l.Locked);
+        // Alrededor de los puentes no hay loma: debajo del tablero tiene que pasar la otra ruta.
+        float[,] bridgeFar = BridgeDistance(solid, res, sizeX, sizeZ);
         float[,] lockedEdge = locked.Count > 0 ? TrailTerrainCarver.EdgeDistance(locked, res, sizeX, sizeZ, LockedFade) : null;
         float[,] ridgeDistance = new float[res, res];
         float[,] ridgeHeight = new float[res, res];
@@ -87,12 +90,42 @@ public static class MountainRidges
                 float shape = Mathf.Pow(Mathf.Max(0f, 1f - dd * dd), 1.3f);
                 float add = (Sample(ridgeHeight, u, v) * peaks + gullies + rough) * shape;
                 if (lockedEdge != null) add *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(LockedFade * 0.4f, LockedFade, Sample(lockedEdge, u, v)));
+                if (bridgeFar != null) add *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(BridgeClear * 0.6f, BridgeClear, Sample(bridgeFar, u, v)));
                 // Cerca de un sendero la loma baja como pared hasta su orilla.
                 float edge = Sample(trailEdge, u, v);
                 add = Mathf.Min(add, Mathf.Max(0f, edge - TrailClearance) * WallSlope);
                 if (add > 0f) heights[z, x] += add;
             }
         }
+    }
+
+    /// <summary>Distancia (m) a los tramos de puente (puntos sin tallar), o null si no hay puentes.</summary>
+    private static float[,] BridgeDistance(List<TrailTerrainCarver.Line> lines, int res, float sizeX, float sizeZ)
+    {
+        List<Vector2> deck = new List<Vector2>();
+        foreach (TrailTerrainCarver.Line line in lines)
+        {
+            if (line.NoCarve == null) continue;
+            for (int i = 0; i < line.Points.Length; i++) if (line.NoCarve[i]) deck.Add(line.Points[i]);
+        }
+        if (deck.Count == 0) return null;
+        float[,] field = new float[res, res];
+        for (int z = 0; z < res; z++) for (int x = 0; x < res; x++) field[z, x] = BridgeClear;
+        float cellX = sizeX / (res - 1), cellZ = sizeZ / (res - 1);
+        int rx = Mathf.CeilToInt(BridgeClear / cellX), rz = Mathf.CeilToInt(BridgeClear / cellZ);
+        foreach (Vector2 p in deck)
+        {
+            int cx = Mathf.RoundToInt(p.x / cellX), cz = Mathf.RoundToInt(p.y / cellZ);
+            for (int z = Mathf.Max(0, cz - rz); z <= Mathf.Min(res - 1, cz + rz); z++)
+            {
+                for (int x = Mathf.Max(0, cx - rx); x <= Mathf.Min(res - 1, cx + rx); x++)
+                {
+                    float dx = x * cellX - p.x, dz = z * cellZ - p.y;
+                    field[z, x] = Mathf.Min(field[z, x], Mathf.Sqrt(dx * dx + dz * dz));
+                }
+            }
+        }
+        return field;
     }
 
     /// <summary>Corre cada punto de la loma (de lado) a donde queda más lejos de todas las rutas: al medio entre ellas.</summary>

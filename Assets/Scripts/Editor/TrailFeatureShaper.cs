@@ -89,8 +89,9 @@ public static class TrailFeatureShaper
             }
             case Feature.Doubles: Doubles(h, at, size, placed); break;
             case Feature.Rollers: Rollers(h, at, size, placed); break;
-            case Feature.RockGarden: Rough(line, at, 40f * size, 0.17f * size, placed); break;
-            case Feature.Roots: Rough(line, at, 30f * size, 0.1f * size, placed); break;
+            // Pedregal y raíces al 40 % de lo que eran: vibra, pero la bici no salta sola.
+            case Feature.RockGarden: Rough(line, at, 40f * size, 0.07f * size, placed); break;
+            case Feature.Roots: Rough(line, at, 30f * size, 0.04f * size, placed); break;
         }
         placed.Start = Mathf.Clamp(placed.Start, 0, n - 1);
         placed.End = Mathf.Clamp(placed.End, 0, n - 1);
