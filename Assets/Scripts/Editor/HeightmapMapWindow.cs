@@ -11,9 +11,9 @@ public class HeightmapMapWindow : EditorWindow
 {
     private const string PrefsKey = "DownhillRace.MapaDesdeHeightmap";
     // Sube cuando cambian los valores recomendados: los guardados antes se descartan una vez.
-    private const int SettingsVersion = 3;
-    private static readonly int[] Resolutions = { 513, 1025, 2049 };
-    private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)" };
+    private const int SettingsVersion = 4;
+    private static readonly int[] Resolutions = { 513, 1025, 2049, 4097 };
+    private static readonly string[] ResolutionNames = { "513 (rápido)", "1025 (liviano)", "2049 (recomendado)", "4097 (saltos nítidos, lento)" };
 
     [SerializeField] private HeightmapMapBuilder.Settings settings = new HeightmapMapBuilder.Settings();
     [SerializeField] private int mapIndex;

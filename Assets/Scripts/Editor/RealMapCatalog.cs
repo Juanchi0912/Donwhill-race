@@ -20,10 +20,13 @@ public static class RealMapCatalog
         new Entry { Id = "lapaz", DisplayName = "La Paz — Yunguilla", Defaults = LaPazDefaults, Trails = LaPazTrails.Create },
     };
 
-    /// <summary>Turi – Ictocruz (Cuenca): 1,77 km, 331 m de desnivel, heightmap de 8 bits.</summary>
+    /// <summary>
+    /// Turi – Ictocruz (Cuenca): 1,77 km, 331 m de desnivel, heightmap de 8 bits.
+    /// Pista terminada: resolución 4097 para que los saltos y drops queden nítidos (cada celda mide 43 cm).
+    /// </summary>
     private static HeightmapMapBuilder.Settings TuriDefaults()
     {
-        return new HeightmapMapBuilder.Settings();
+        return new HeightmapMapBuilder.Settings { Resolution = 4097, TreesPerHectare = 22f };
     }
 
     /// <summary>

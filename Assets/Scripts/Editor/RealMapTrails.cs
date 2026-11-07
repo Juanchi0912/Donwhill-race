@@ -14,6 +14,60 @@ public static class RealMapTrails
         public float HalfWidth;          // Medio ancho en metros.
         public float MaxClimb = 0.08f;   // Subida máxima (8 % = se sube pedaleando).
         public Vector2[] Image;          // Puntos en la imagen: x de 0 (oeste) a 1 (este), y de 0 (norte) a 1 (sur).
+        public bool Locked;              // Parte real que edita el usuario (círculos grises): no se le agrega nada.
+        public bool AutoJumps;           // En las rectas largas se ponen saltos, mesas o lomas solos.
+        public bool Forest;              // Bosque cerrado: árboles pegados al sendero (chocar = caída).
+        public bool Clay;                // Las curvas cerradas son de arcilla: color rojizo y menos agarre.
+        public bool Crowd;               // Público y vallas con pancartas a los dos lados (recta final).
+        public List<Spot> Spots = new List<Spot>();   // Saltos y obstáculos puestos a mano.
+    }
+
+    /// <summary>Tipos de salto u obstáculo que se tallan en el sendero.</summary>
+    public enum Feature
+    {
+        Mirador,     // Plataforma de madera en la salida con drop.
+        Drop,        // Escalón: la bajada se aplana y cae de golpe a una recepción larga.
+        Kicker,      // Rampa de madera con caída.
+        Tabletop,    // Mesa: rampa, plano y recepción.
+        Doubles,     // Tres dobles seguidos (rampa, hueco y recepción).
+        Rollers,     // Lomas seguidas para bombear o saltar.
+        RoadGap,     // Gap sobre el camino de tierra.
+        FenceGap,    // Salto sobre una cerca de piedra.
+        RockDrop,    // Drop de roca en el bosque.
+        BigJump,     // Salto enorme antes de la meta.
+        RockGarden,  // Pedregal: el piso vibra y rebota.
+        Roots        // Raíces cruzadas en el sendero.
+    }
+
+    /// <summary>Salto u obstáculo en un punto del tramo (en la imagen, 0–1).</summary>
+    public class Spot
+    {
+        public Feature Type;
+        public Vector2 At;
+        public float Size = 1f;
+    }
+
+    /// <summary>Puente de madera: "Upper" pasa por arriba de "Lower" (índices de tramos) donde se cruzan.</summary>
+    public class Bridge
+    {
+        public int Upper, Lower;
+    }
+
+    /// <summary>Loma empinada entre rutas (límite): tapa la vista de una ruta a otra. Se corre sola al medio y nunca tapa un sendero.</summary>
+    public class Ridge
+    {
+        public Vector2[] Image;          // Trazo de la cumbre en la imagen (0–1).
+        public float Height = 55f;       // Altura sobre el terreno (m).
+        public float HalfWidth = 55f;    // De la cumbre al pie (m).
+    }
+
+    /// <summary>Retoque del relieve antes de tallar: suavizar una zona o bajarla (abrir un paso en una loma).</summary>
+    public class Sculpt
+    {
+        public bool Lower;       // false = suavizar ("Amount" = desenfoque en m); true = bajar "Amount" metros.
+        public Vector2 Center;   // En la imagen (0–1).
+        public float Radius;     // En fracción del ancho de la imagen.
+        public float Amount;
     }
 
     /// <summary>Ruta completa de salida a meta, armada con tramos (índices de Set.Segments).</summary>
@@ -71,6 +125,15 @@ public static class RealMapTrails
         public List<River> Rivers = new List<River>();
         /// <summary>Límite de la pista en la imagen (0–1); null = sin límite. Fuera de él la bici reaparece.</summary>
         public Vector2[] Bounds;
+        public List<Segment> Roads = new List<Segment>();    // Caminos de tierra (se tallan primero, sin límite de subida).
+        public List<Bridge> Bridges = new List<Bridge>();
+        public List<Sculpt> Sculpts = new List<Sculpt>();
+        public List<Ridge> Ridges = new List<Ridge>();
+        public float SouthRise;     // Metros que sube el borde sur (inclina el mapa: todo baja hacia el norte).
+        public bool Dressing;       // Pista terminada: cintas, pancartas, puente, público, ciudad a lo lejos.
+        public bool Crashes;        // Chocar fuerte (árbol, roca, baranda) es caída y se reaparece.
+        public float ViewDistance;  // Niebla lejana (m) para ver la ciudad; 0 = la de la ambientación.
+        public Vector2[] Farms = new Vector2[0];   // Casas de campo (al final de los caminos).
     }
 
     /// <summary>Puntos en píxeles de una imagen de referencia (recuadro del heightmap de (x0, y0) a (x1, y1)) a 0–1.</summary>
@@ -91,6 +154,13 @@ public static class RealMapTrails
     public static Segment Make(string name, float halfWidth, float x0, float y0, float x1, float y1, params int[] xy)
     {
         return new Segment { Name = name, HalfWidth = halfWidth, Image = Points(x0, y0, x1, y1, xy) };
+    }
+
+    /// <summary>Salto u obstáculo en el punto (x, y) de la imagen de referencia del tramo.</summary>
+    public static Segment With(this Segment segment, Feature type, Vector2 imagePoint, float size = 1f)
+    {
+        segment.Spots.Add(new Spot { Type = type, At = imagePoint, Size = size });
+        return segment;
     }
 
     /// <summary>Cambia la subida máxima del tramo (por ejemplo 3 % en una salida de sprint).</summary>
